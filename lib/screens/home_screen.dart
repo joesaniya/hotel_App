@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hotel_app/business_logic/auth-provider.dart';
@@ -248,7 +250,22 @@ class _HomeScreenState extends State<HomeScreen> {
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: () => _handleResultTap(result),
+        /*onTap: () {
+          log('hotel result tapped: ${result.searchArray}');
+          // _handleResultTap(result);
+        },*/
+        onTap: () {
+          final queryList = result.searchArray?['query'];
+
+          if (queryList is List && queryList.isNotEmpty) {
+            log('Query List: ${queryList.map((e) => e.toString()).toList()}');
+          } else {
+            log('No query list found in searchArray');
+          }
+
+          _handleResultTap(result);
+        },
+
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
