@@ -1,3 +1,4 @@
+import 'package:hotel_app/business_logic/app_settings_provider.dart';
 import 'package:hotel_app/business_logic/auth-provider.dart';
 import 'package:hotel_app/business_logic/home_provider.dart';
 import 'package:provider/provider.dart';
@@ -15,5 +16,6 @@ class ProviderHelperClass {
     // ChangeNotifierProvider(create: (context) => SplashProvider(context)),
     ChangeNotifierProvider(create: (_) => AuthProvider()),
     ChangeNotifierProvider(create: (_) => HomeProvider()),
+    ChangeNotifierProvider(create: (_) => AppSettingsProvider()),
   ];
 }

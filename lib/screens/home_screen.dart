@@ -5,6 +5,7 @@ import 'package:hotel_app/business_logic/auth-provider.dart';
 import 'package:hotel_app/business_logic/home_provider.dart';
 import 'package:hotel_app/models/search_result.dart';
 import 'package:hotel_app/models/static_modal.dart';
+import 'package:hotel_app/screens/app_setting_screen.dart';
 import 'package:hotel_app/screens/bottom_sheet_widget/search_filter_bottomsheet.dart';
 import 'package:hotel_app/screens/hotel_result_screen.dart';
 import 'package:provider/provider.dart';
@@ -139,6 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
         IconButton(
           icon: CircleAvatar(
             radius: 18,
+            backgroundColor: Colors.white,
             backgroundImage: widget.user.photoURL != null
                 ? NetworkImage(widget.user.photoURL!)
                 : null,
@@ -916,6 +918,23 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Align(
+            alignment: Alignment.topRight,
+            child: IconButton(
+              icon: CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.white,
+                child: Icon(Icons.settings, size: 20, color: Colors.black),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => AppSettingsScreen()),
+                );
+              },
+            ),
+          ),
           CircleAvatar(
             radius: 40,
             backgroundImage: widget.user.photoURL != null
