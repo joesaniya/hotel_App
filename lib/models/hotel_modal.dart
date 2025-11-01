@@ -15,6 +15,8 @@ class Hotel {
   final GoogleReview? googleReview;
   final SimplPriceList? simplPriceList;
   final PropertyPolicies? propertyPolicies;
+  final bool isFavorite;
+  final int propertyView;
 
   Hotel({
     required this.propertyCode,
@@ -33,6 +35,8 @@ class Hotel {
     this.googleReview,
     this.simplPriceList,
     this.propertyPolicies,
+    this.isFavorite = false,
+    this.propertyView = 0,
   });
 
   factory Hotel.fromJson(Map<String, dynamic> json) {
@@ -76,9 +80,12 @@ class Hotel {
           ? PropertyPolicies.fromJson(
               json['propertyPoliciesAndAmmenities']['data'])
           : null,
+      isFavorite: json['isFavorite'] ?? false,
+      propertyView: json['propertyView'] ?? 0,
     );
   }
 }
+
 
 class PropertyImage {
   final String fullUrl;

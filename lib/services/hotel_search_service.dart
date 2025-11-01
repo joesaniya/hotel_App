@@ -102,7 +102,7 @@ class HotelSearchService {
     }
   }
 
-  /// Get hotel search results with pagination
+ /// Get hotel search results with pagination
   Future<HotelSearchResponse> getSearchResultListOfHotels({
     required List<String> searchQuery,
     required String searchType,
@@ -127,35 +127,8 @@ class HotelSearchService {
         log('No visitor token found');
         return HotelSearchResponse(hotels: [], excludedHotels: []);
       }
+
       final requestBody = {
-        "action": "getSearchResultListOfHotels",
-        "getSearchResultListOfHotels": {
-          "searchCriteria": {
-            "checkIn": "2026-07-11",
-            "checkOut": "2026-07-12",
-            "rooms": 2,
-            "adults": 2,
-            "children": 0,
-            "searchType": "hotelIdSearch",
-            "searchQuery": ["qyhZqzVt"],
-            "accommodation": [
-              "all",
-              "hotel", //allowed "hotel","resort","Boat House","bedAndBreakfast","guestHouse","Holidayhome","cottage","apartment","Home Stay", "hostel","Guest House","Camp_sites/tent","co_living","Villa","Motel","Capsule Hotel","Dome Hotel","all"
-            ],
-            "arrayOfExcludedSearchType": [
-              "street", //allowed street, city, state, country
-            ],
-            "highPrice": "3000000",
-            "lowPrice": "0",
-            "limit": 5,
-            "preloaderList": [],
-            "currency": "INR",
-            "rid": 0,
-          },
-        },
-      };
-      log('getSearchResultListOfHotels requestBody: $requestBody');
-      final requestBody1 = {
         "action": "getSearchResultListOfHotels",
         "getSearchResultListOfHotels": {
           "searchCriteria": {
@@ -178,7 +151,7 @@ class HotelSearchService {
         },
       };
 
-      log('Fetching hotels with query: $searchQuery');
+      log('getSearchResultListOfHotels requestBody: $requestBody');
 
       final response = await _dioClient.performCall(
         requestType: RequestType.post,
@@ -200,8 +173,6 @@ class HotelSearchService {
       return HotelSearchResponse(hotels: [], excludedHotels: []);
     }
   }
-
-  /// Parse search results from API response
   List<SearchResult> _parseSearchResults(dynamic responseData) {
     final List<SearchResult> results = [];
 

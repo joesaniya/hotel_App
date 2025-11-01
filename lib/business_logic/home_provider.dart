@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 
 import 'package:hotel_app/models/hotel_modal.dart';
 import 'package:hotel_app/models/search_result.dart';
+import 'package:hotel_app/screens/bottom_sheet_widget/search_filter_bottomsheet.dart';
 import 'package:hotel_app/services/hotel_search_service.dart';
 
 class HomeProvider extends ChangeNotifier {
   final HotelSearchService _searchService = HotelSearchService();
-  
+
   // State variables for autocomplete search
   List<SearchResult> _searchResults = [];
   bool _isSearching = false;
@@ -21,15 +22,13 @@ class HomeProvider extends ChangeNotifier {
   bool _isLoadingHotels = false;
   bool _hasMoreHotels = true;
   int _currentRid = 0;
-  String? _selectedLocationId;
-  String? _selectedSearchType2;
   
+  // Store the actual search query list for API calls
+  List<String>? _currentSearchQuery;
+  String? _selectedSearchType2;
+
   // Search criteria
-  String _checkIn = '';
-  String _checkOut = '';
-  int _rooms = 1;
-  int _adults = 2;
-  int _children = 0;
+  SearchCriteria? _searchCriteria;
 
   // Getters for autocomplete
   List<SearchResult> get searchResults => _searchResults;
@@ -42,14 +41,7 @@ class HomeProvider extends ChangeNotifier {
   List<Hotel> get hotels => _hotels;
   bool get isLoadingHotels => _isLoadingHotels;
   bool get hasMoreHotels => _hasMoreHotels;
-  String? get selectedLocationId => _selectedLocationId;
-
-  // Search criteria getters
-  String get checkIn => _checkIn;
-  String get checkOut => _checkOut;
-  int get rooms => _rooms;
-  int get adults => _adults;
-  int get children => _children;
+  SearchCriteria? get searchCriteria => _searchCriteria;
 
   /// Initialize with default data
   Future<void> initialize() async {
@@ -69,18 +61,8 @@ class HomeProvider extends ChangeNotifier {
   }
 
   /// Set search criteria
-  void setSearchCriteria({
-    required String checkIn,
-    required String checkOut,
-    int? rooms,
-    int? adults,
-    int? children,
-  }) {
-    _checkIn = checkIn;
-    _checkOut = checkOut;
-    if (rooms != null) _rooms = rooms;
-    if (adults != null) _adults = adults;
-    if (children != null) _children = children;
+  void setSearchCriteria(SearchCriteria criteria) {
+    _searchCriteria = criteria;
     notifyListeners();
   }
 
@@ -121,15 +103,36 @@ class HomeProvider extends ChangeNotifier {
   }
 
   /// Select a location from search results and fetch hotels
-  Future<void> selectLocationAndFetchHotels(SearchResult result) async {
-    if (result.searchArray == null) {
-      log('No search array found for result');
-      return;
+  Future<void> selectLocationAndFetchHotels(
+    SearchResult result,
+    SearchCriteria criteria,
+  ) async {
+    // Extract query list from searchArray
+    final queryList = result.getSearchQueryList();
+    
+    // If no query list, use the result ID as fallback
+    if (queryList.isEmpty) {
+      log('⚠️ No query list found, using result ID: ${result.id}');
+      _currentSearchQuery = [result.id];
+    } else {
+      log('✅ Using query list: $queryList');
+      _currentSearchQuery = queryList;
     }
 
-    _selectedLocationId = result.id;
-    _selectedSearchType2 = _mapCategoryToSearchType(result.type);
-    
+    // Map the result type to API search type
+    _selectedSearchType2 = result.getSearchTypeForAPI();
+    _searchCriteria = criteria;
+
+    log('🔍 Search Parameters:');
+    log('   Query: $_currentSearchQuery');
+    log('   Search Type: $_selectedSearchType2');
+    log('   Check-in: ${criteria.checkIn}');
+    log('   Check-out: ${criteria.checkOut}');
+    log('   Rooms: ${criteria.rooms}, Adults: ${criteria.adults}');
+    log('   Accommodations: ${criteria.accommodations}');
+    log('   Excluded Types: ${criteria.excludedSearchTypes}');
+    log('   Price Range: ${criteria.minPrice} - ${criteria.maxPrice}');
+
     // Reset pagination
     _hotels = [];
     _excludedHotels = [];
@@ -142,10 +145,20 @@ class HomeProvider extends ChangeNotifier {
 
   /// Fetch hotels with pagination
   Future<void> fetchHotels({bool isInitial = false}) async {
-    if (_isLoadingHotels || !_hasMoreHotels) return;
+    if (_isLoadingHotels || !_hasMoreHotels) {
+      log('⏸️ Skipping fetch: loading=$_isLoadingHotels, hasMore=$_hasMoreHotels');
+      return;
+    }
 
-    if (_selectedLocationId == null || _selectedSearchType2 == null) {
-      log('No location selected');
+    if (_currentSearchQuery == null || 
+        _currentSearchQuery!.isEmpty || 
+        _selectedSearchType2 == null) {
+      log('❌ Missing search parameters');
+      return;
+    }
+
+    if (_searchCriteria == null) {
+      log('❌ No search criteria set');
       return;
     }
 
@@ -157,33 +170,46 @@ class HomeProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      log('📡 Fetching hotels (rid: $_currentRid)...');
+      
       final response = await _searchService.getSearchResultListOfHotels(
-        searchQuery: [_selectedLocationId!],
+        searchQuery: _currentSearchQuery!,
         searchType: _selectedSearchType2!,
-        checkIn: _checkIn.isEmpty ? _getDefaultCheckIn() : _checkIn,
-        checkOut: _checkOut.isEmpty ? _getDefaultCheckOut() : _checkOut,
-        rooms: _rooms,
-        adults: _adults,
-        children: _children,
-        limit: 10,
+        checkIn: _searchCriteria!.checkIn,
+        checkOut: _searchCriteria!.checkOut,
+        rooms: _searchCriteria!.rooms,
+        adults: _searchCriteria!.adults,
+        children: _searchCriteria!.children,
+        accommodation: _searchCriteria!.accommodations,
+        arrayOfExcludedSearchType: _searchCriteria!.excludedSearchTypes,
+        highPrice: _searchCriteria!.maxPrice.toInt().toString(),
+        lowPrice: _searchCriteria!.minPrice.toInt().toString(),
+        limit: 5,
         preloaderList: _excludedHotels,
         rid: _currentRid,
       );
 
+      log('✅ Fetched ${response.hotels.length} hotels');
+
       if (response.hotels.isEmpty) {
+        log('📭 No more hotels available');
         _hasMoreHotels = false;
       } else {
         _hotels.addAll(response.hotels);
         _excludedHotels.addAll(response.excludedHotels);
         _currentRid++;
-        _hasMoreHotels = response.hotels.length >= 10;
+        _hasMoreHotels = response.hotels.length >= 5;
+        
+        log('📊 Total hotels: ${_hotels.length}');
+        log('🚫 Excluded hotels: ${_excludedHotels.length}');
       }
 
       _isLoadingHotels = false;
       notifyListeners();
     } catch (e) {
-      log('Error fetching hotels: $e');
+      log('❌ Error fetching hotels: $e');
       _isLoadingHotels = false;
+      _hasMoreHotels = false;
       notifyListeners();
       rethrow;
     }
@@ -192,6 +218,7 @@ class HomeProvider extends ChangeNotifier {
   /// Load more hotels (pagination)
   Future<void> loadMoreHotels() async {
     if (!_isLoadingHotels && _hasMoreHotels) {
+      log('⏩ Loading more hotels...');
       await fetchHotels();
     }
   }
@@ -210,7 +237,7 @@ class HomeProvider extends ChangeNotifier {
     _excludedHotels = [];
     _currentRid = 0;
     _hasMoreHotels = true;
-    _selectedLocationId = null;
+    _currentSearchQuery = null;
     _selectedSearchType2 = null;
     notifyListeners();
   }
@@ -236,33 +263,5 @@ class HomeProvider extends ChangeNotifier {
       default:
         return 'byCity';
     }
-  }
-
-  /// Helper: Map category to search type for hotel API
-  String _mapCategoryToSearchType(String category) {
-    switch (category.toLowerCase()) {
-      case 'hotel':
-        return 'hotelIdSearch';
-      case 'city':
-        return 'cityIdSearch';
-      case 'state':
-        return 'stateIdSearch';
-      case 'country':
-        return 'countryIdSearch';
-      default:
-        return 'cityIdSearch';
-    }
-  }
-
-  /// Get default check-in date (tomorrow)
-  String _getDefaultCheckIn() {
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
-    return '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}';
-  }
-
-  /// Get default check-out date (day after tomorrow)
-  String _getDefaultCheckOut() {
-    final dayAfterTomorrow = DateTime.now().add(const Duration(days: 2));
-    return '${dayAfterTomorrow.year}-${dayAfterTomorrow.month.toString().padLeft(2, '0')}-${dayAfterTomorrow.day.toString().padLeft(2, '0')}';
   }
 }

@@ -21,20 +21,23 @@ class SearchResult {
 
   factory SearchResult.fromJson(Map<String, dynamic> json, String category) {
     final address = json['address'] as Map<String, dynamic>?;
-    
+
     return SearchResult(
-      id: json['id']?.toString() ?? 
-          json['searchArray']?['query']?.first?.toString() ?? 
+      id:
+          json['id']?.toString() ??
+          json['searchArray']?['query']?.first?.toString() ??
           DateTime.now().millisecondsSinceEpoch.toString(),
-      name: json['valueToDisplay'] ?? 
-            json['propertyName'] ?? 
-            json['name'] ?? 
-            'Unknown',
+      name:
+          json['valueToDisplay'] ??
+          json['propertyName'] ??
+          json['name'] ??
+          'Unknown',
       type: _getCategoryDisplayName(category),
       city: address?['city']?.toString(),
       state: address?['state']?.toString(),
       country: address?['country']?.toString(),
       imageUrl: json['image'] ?? json['imageUrl'],
+      // IMPORTANT: Store the entire searchArray object
       searchArray: json['searchArray'] as Map<String, dynamic>?,
     );
   }
@@ -63,44 +66,36 @@ class SearchResult {
     if (country != null && country!.isNotEmpty) parts.add(country!);
     return parts.join(', ');
   }
+
+  // Helper method to get search query list
+  List<String> getSearchQueryList() {
+    if (searchArray == null || searchArray!['query'] == null) {
+      return [];
+    }
+
+    final queryList = searchArray!['query'];
+    if (queryList is List) {
+      return queryList.map((e) => e.toString()).toList();
+    }
+
+    return [];
+  }
+
+  // Helper method to get search type for API
+  String getSearchTypeForAPI() {
+    switch (type.toLowerCase()) {
+      case 'hotel':
+        return 'hotelIdSearch';
+      case 'city':
+        return 'cityIdSearch';
+      case 'state':
+        return 'stateIdSearch';
+      case 'country':
+        return 'countryIdSearch';
+      case 'street':
+        return 'streetIdSearch';
+      default:
+        return 'cityIdSearch';
+    }
+  }
 }
-
-/*class SearchResult {
-  final String id;
-  final String name;
-  final String type;
-  final String? city;
-  final String? state;
-  final String? country;
-  final String? imageUrl;
-
-  SearchResult({
-    required this.id,
-    required this.name,
-    required this.type,
-    this.city,
-    this.state,
-    this.country,
-    this.imageUrl,
-  });
-
-  factory SearchResult.fromJson(Map<String, dynamic> json) {
-    return SearchResult(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] ?? json['propertyName'] ?? '',
-      type: json['type'] ?? 'hotel',
-      city: json['city'],
-      state: json['state'],
-      country: json['country'],
-      imageUrl: json['image'] ?? json['imageUrl'],
-    );
-  }
-
-  String get displayLocation {
-    final parts = <String>[];
-    if (city != null && city!.isNotEmpty) parts.add(city!);
-    if (state != null && state!.isNotEmpty) parts.add(state!);
-    if (country != null && country!.isNotEmpty) parts.add(country!);
-    return parts.join(', ');
-  }
-}*/

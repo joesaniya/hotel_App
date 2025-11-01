@@ -1,10 +1,10 @@
 import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hotel_app/business_logic/auth-provider.dart';
 import 'package:hotel_app/business_logic/home_provider.dart';
 import 'package:hotel_app/models/search_result.dart';
+import 'package:hotel_app/screens/bottom_sheet_widget/search_filter_bottomsheet.dart';
 import 'package:hotel_app/screens/hotel_result_screen.dart';
 import 'package:provider/provider.dart';
 import 'sign_in_screen.dart';
@@ -57,20 +57,6 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       homeProvider.initialize();
     }
-  }
-
-  Future<void> _handleResultTap(SearchResult result) async {
-    // Navigate to new screen
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => HotelResultsScreen(searchResult: result),
-      ),
-    );
-  }
-
-  void _handleBackToSearch() {
-    context.read<HomeProvider>().clearHotels();
   }
 
   @override
@@ -250,22 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        /*onTap: () {
-          log('hotel result tapped: ${result.searchArray}');
-          // _handleResultTap(result);
-        },*/
-        onTap: () {
-          final queryList = result.searchArray?['query'];
-
-          if (queryList is List && queryList.isNotEmpty) {
-            log('Query List: ${queryList.map((e) => e.toString()).toList()}');
-          } else {
-            log('No query list found in searchArray');
-          }
-
-          _handleResultTap(result);
-        },
-
+        onTap: () => _showSearchFilterSheet(result),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -334,6 +305,89 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  // FIXED: Properly handle navigation after filter selection
+  void _showSearchFilterSheet(SearchResult result) {
+    final homeProvider = context.read<HomeProvider>();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, controller) => SearchFilterBottomSheet(
+          initialCriteria: homeProvider.searchCriteria,
+          onSearch: (criteria) async {
+            // Store criteria in provider
+            homeProvider.setSearchCriteria(criteria);
+            
+            // Close the bottom sheet first
+            Navigator.pop(context);
+            
+            // Small delay to ensure bottom sheet is fully closed
+            await Future.delayed(const Duration(milliseconds: 100));
+            
+            // Then navigate to hotel results
+            if (mounted) {
+              _navigateToHotelResults(result, criteria);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  // FIXED: Separate navigation method with proper error handling
+  Future<void> _navigateToHotelResults(
+    SearchResult result,
+    SearchCriteria criteria,
+  ) async {
+    try {
+      // Log search details for debugging
+      final queryList = result.getSearchQueryList();
+      
+      if (queryList.isEmpty) {
+        log('⚠️ Warning: No query list found, using result ID as fallback');
+        log('Result ID: ${result.id}');
+        log('Result Type: ${result.type}');
+      } else {
+        log('✅ Query List: ${queryList.join(", ")}');
+      }
+
+      log('Search Type: ${result.getSearchTypeForAPI()}');
+      log('Check-in: ${criteria.checkIn}');
+      log('Check-out: ${criteria.checkOut}');
+      log('Rooms: ${criteria.rooms}, Adults: ${criteria.adults}');
+      log('Accommodations: ${criteria.accommodations}');
+      log('Price Range: ${criteria.minPrice} - ${criteria.maxPrice}');
+
+      // Navigate to hotel results screen
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HotelResultsScreen(
+            searchResult: result,
+            searchCriteria: criteria,
+          ),
+        ),
+      );
+    } catch (e) {
+      log('❌ Error navigating to hotel results: $e');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   IconData _getIconForType(String type) {

@@ -1,16 +1,23 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hotel_app/business_logic/home_provider.dart';
 import 'package:hotel_app/models/hotel_modal.dart';
 import 'package:hotel_app/models/search_result.dart';
+import 'package:hotel_app/screens/bottom_sheet_widget/search_filter_bottomsheet.dart';
+import 'package:hotel_app/screens/home_detail_screen.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class HotelResultsScreen extends StatefulWidget {
   final SearchResult searchResult;
+  final SearchCriteria searchCriteria;
 
   const HotelResultsScreen({
     super.key,
     required this.searchResult,
+    required this.searchCriteria,
   });
 
   @override
@@ -23,10 +30,14 @@ class _HotelResultsScreenState extends State<HotelResultsScreen> {
   @override
   void initState() {
     super.initState();
-    
+    log('searchresult:${widget.searchResult}');
+    log('searchcriteria:${widget.searchCriteria}');
     // Fetch hotels when screen loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<HomeProvider>().selectLocationAndFetchHotels(widget.searchResult);
+      context.read<HomeProvider>().selectLocationAndFetchHotels(
+        widget.searchResult,
+        widget.searchCriteria,
+      );
     });
 
     // Setup pagination listener
@@ -53,10 +64,12 @@ class _HotelResultsScreenState extends State<HotelResultsScreen> {
       appBar: _buildAppBar(),
       body: Column(
         children: [
+          _buildSearchSummary(),
           _buildLocationHeader(),
           Expanded(child: _buildHotelResults()),
         ],
       ),
+      // floatingActionButton: _buildFilterButton(),
     );
   }
 
@@ -77,6 +90,61 @@ class _HotelResultsScreenState extends State<HotelResultsScreen> {
           color: Colors.black87,
           fontWeight: FontWeight.w600,
         ),
+      ),
+    );
+  }
+
+  Widget _buildSearchSummary() {
+    final criteria = widget.searchCriteria;
+    final nights = criteria.checkOutDate
+        .difference(criteria.checkInDate)
+        .inDays;
+
+    return Container(
+      width: double.infinity,
+      color: Colors.blue[50],
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today,
+                      size: 14,
+                      color: Colors.blue[700],
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${DateFormat('MMM dd').format(criteria.checkInDate)} - ${DateFormat('MMM dd, yyyy').format(criteria.checkOutDate)}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.blue[900],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$nights ${nights == 1 ? 'Night' : 'Nights'} • ${criteria.rooms} ${criteria.rooms == 1 ? 'Room' : 'Rooms'} • ${criteria.adults} ${criteria.adults == 1 ? 'Adult' : 'Adults'}${criteria.children > 0 ? ' • ${criteria.children} ${criteria.children == 1 ? 'Child' : 'Children'}' : ''}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _showFilterSheet,
+            icon: Icon(Icons.tune, color: Colors.blue[700]),
+            tooltip: 'Modify Search',
+          ),
+        ],
       ),
     );
   }
@@ -122,10 +190,7 @@ class _HotelResultsScreenState extends State<HotelResultsScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.blue[50],
                   borderRadius: BorderRadius.circular(4),
@@ -160,9 +225,7 @@ class _HotelResultsScreenState extends State<HotelResultsScreen> {
         return Column(
           children: [
             _buildResultsCount(homeProvider.hotels.length),
-            Expanded(
-              child: _buildHotelList(homeProvider),
-            ),
+            Expanded(child: _buildHotelList(homeProvider)),
           ],
         );
       },
@@ -201,6 +264,17 @@ class _HotelResultsScreenState extends State<HotelResultsScreen> {
             'Try adjusting your search criteria',
             style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[400]),
           ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: _showFilterSheet,
+            icon: const Icon(Icons.tune),
+            label: const Text('Modify Search'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+          ),
         ],
       ),
     );
@@ -210,8 +284,8 @@ class _HotelResultsScreenState extends State<HotelResultsScreen> {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
-      itemCount: homeProvider.hotels.length +
-          (homeProvider.isLoadingHotels ? 1 : 0),
+      itemCount:
+          homeProvider.hotels.length + (homeProvider.isLoadingHotels ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == homeProvider.hotels.length) {
           return const Center(
@@ -450,14 +524,6 @@ class _HotelResultsScreenState extends State<HotelResultsScreen> {
                         ),
                       ],
                     ),
-                    if (hotel.simplPriceList != null)
-                      Text(
-                        'Per night: ${hotel.simplPriceList!.simplPrice.displayAmount}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          color: Colors.grey[600],
-                        ),
-                      ),
                   ],
                 ),
                 ElevatedButton(
@@ -525,6 +591,46 @@ class _HotelResultsScreenState extends State<HotelResultsScreen> {
     );
   }
 
+  Widget _buildFilterButton() {
+    return FloatingActionButton.extended(
+      onPressed: _showFilterSheet,
+      backgroundColor: Colors.blue,
+      icon: const Icon(Icons.tune),
+      label: Text(
+        'Filters',
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  void _showFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, controller) => SearchFilterBottomSheet(
+          initialCriteria: widget.searchCriteria,
+          onSearch: (newCriteria) {
+            context.read<HomeProvider>().clearHotels();
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HotelResultsScreen(
+                  searchResult: widget.searchResult,
+                  searchCriteria: newCriteria,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   IconData _getIconForType(String type) {
     switch (type.toLowerCase()) {
       case 'hotel':
@@ -541,15 +647,12 @@ class _HotelResultsScreenState extends State<HotelResultsScreen> {
   }
 
   void _handleHotelTap(Hotel hotel) {
-    // You can navigate to hotel details screen here
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Opening ${hotel.propertyName}'),
-        action: SnackBarAction(
-          label: 'Open URL',
-          onPressed: () {
-            // You can open hotel.propertyUrl here
-          },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HotelDetailsScreen(
+          hotel: hotel,
+          searchCriteria: widget.searchCriteria,
         ),
       ),
     );
