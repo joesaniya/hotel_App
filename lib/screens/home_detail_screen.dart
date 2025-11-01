@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hotel_app/models/hotel_modal.dart';
@@ -74,10 +76,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen>
             color: Colors.white,
             shape: BoxShape.circle,
             boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                blurRadius: 8,
-              ),
+              BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8),
             ],
           ),
           child: const Icon(Icons.arrow_back, color: Colors.black87),
@@ -92,10 +91,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen>
               color: Colors.white,
               shape: BoxShape.circle,
               boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 8,
-                ),
+                BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8),
               ],
             ),
             child: Icon(
@@ -109,9 +105,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen>
         ),
         const SizedBox(width: 8),
       ],
-      flexibleSpace: FlexibleSpaceBar(
-        background: _buildHotelImage(),
-      ),
+      flexibleSpace: FlexibleSpaceBar(background: _buildHotelImage()),
     );
   }
 
@@ -244,8 +238,9 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen>
   }
 
   Widget _buildSearchSummaryCard() {
-    final nights =
-        widget.searchCriteria.checkOutDate.difference(widget.searchCriteria.checkInDate).inDays;
+    final nights = widget.searchCriteria.checkOutDate
+        .difference(widget.searchCriteria.checkInDate)
+        .inDays;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -275,13 +270,17 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen>
           _buildInfoRow(
             Icons.calendar_today,
             'Check-in',
-            DateFormat('MMM dd, yyyy').format(widget.searchCriteria.checkInDate),
+            DateFormat(
+              'MMM dd, yyyy',
+            ).format(widget.searchCriteria.checkInDate),
           ),
           const SizedBox(height: 8),
           _buildInfoRow(
             Icons.calendar_today,
             'Check-out',
-            DateFormat('MMM dd, yyyy').format(widget.searchCriteria.checkOutDate),
+            DateFormat(
+              'MMM dd, yyyy',
+            ).format(widget.searchCriteria.checkOutDate),
           ),
           const SizedBox(height: 8),
           _buildInfoRow(
@@ -314,34 +313,27 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen>
         Expanded(
           child: Text(
             label,
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
+            style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
           ),
         ),
         Text(
           value,
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
+          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ],
     );
   }
 
   Widget _buildPricingCard() {
-    final nights =
-        widget.searchCriteria.checkOutDate.difference(widget.searchCriteria.checkInDate).inDays;
+    final nights = widget.searchCriteria.checkOutDate
+        .difference(widget.searchCriteria.checkInDate)
+        .inDays;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue[50]!, Colors.blue[100]!],
-        ),
+        gradient: LinearGradient(colors: [Colors.blue[50]!, Colors.blue[100]!]),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -470,11 +462,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen>
       height: 400,
       child: TabBarView(
         controller: _tabController,
-        children: [
-          _buildAmenitiesTab(),
-          _buildPoliciesTab(),
-          _buildDealsTab(),
-        ],
+        children: [_buildAmenitiesTab(), _buildPoliciesTab(), _buildDealsTab()],
       ),
     );
   }
@@ -487,7 +475,8 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen>
     final policies = widget.hotel.propertyPolicies!;
     final amenities = [
       if (policies.freeWifi) ('Free WiFi', Icons.wifi),
-      if (policies.freeCancellation) ('Free Cancellation', Icons.cancel_outlined),
+      if (policies.freeCancellation)
+        ('Free Cancellation', Icons.cancel_outlined),
       if (policies.coupleFriendly) ('Couple Friendly', Icons.favorite_border),
       if (policies.suitableForChildren)
         ('Suitable for Children', Icons.child_care),
@@ -666,10 +655,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen>
           const SizedBox(height: 16),
           Text(
             message,
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
+            style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
           ),
         ],
       ),
@@ -762,6 +748,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen>
 
     if (deal != null && deal.websiteUrl.isNotEmpty) {
       final url = Uri.parse(deal.websiteUrl);
+      log('Url: $url');
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       } else {
@@ -776,6 +763,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen>
       }
     } else if (widget.hotel.propertyUrl.isNotEmpty) {
       final url = Uri.parse(widget.hotel.propertyUrl);
+      log('Url: $url');
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       }

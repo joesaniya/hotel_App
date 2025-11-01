@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:hotel_app/models/hotel_modal.dart';
 import 'package:hotel_app/models/search_result.dart';
+import 'package:hotel_app/models/static_modal.dart';
 import 'package:hotel_app/screens/bottom_sheet_widget/search_filter_bottomsheet.dart';
 import 'package:hotel_app/services/hotel_search_service.dart';
 
@@ -264,4 +265,72 @@ class HomeProvider extends ChangeNotifier {
         return 'byCity';
     }
   }
+
+  // Static popular hotels data
+  final List<StaticHotel> popularHotels = [
+    StaticHotel(
+      name: 'Santorini',
+      location: 'Greece',
+      price: '\$488',
+      rating: '4.9',
+      imageUrl:
+          'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=400',
+    ),
+    StaticHotel(
+      name: 'Hotel Royal',
+      location: 'Spain',
+      price: '\$280',
+      rating: '4.8',
+      imageUrl:
+          'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400',
+    ),
+    StaticHotel(
+      name: 'Grand Palace',
+      location: 'France',
+      price: '\$350',
+      rating: '4.7',
+      imageUrl:
+          'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400',
+    ),
+    StaticHotel(
+      name: 'Ocean View Resort',
+      location: 'Maldives',
+      price: '\$520',
+      rating: '4.9',
+      imageUrl:
+          'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400',
+    ),
+  ];
+
+  // Static hot deals data
+  final List<StaticDeal> hotDeals = [
+    StaticDeal(
+      name: 'Bali Motel Vung Tau',
+      location: 'Indonesia',
+      price: '\$580',
+      rating: '4.9',
+      discount: '5% OFF',
+      imageUrl:
+          'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=400',
+    ),
+    StaticDeal(
+      name: 'Tropical Paradise',
+      location: 'Thailand',
+      price: '\$420',
+      rating: '4.8',
+      discount: '10% OFF',
+      imageUrl:
+          'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400',
+    ),
+    StaticDeal(
+      name: 'Beach Resort',
+      location: 'Philippines',
+      price: '\$350',
+      rating: '4.7',
+      discount: '15% OFF',
+      imageUrl:
+          'https://images.unsplash.com/photo-1445019980597-93fa8acb246c?w=400',
+    ),
+  ];
+
 }
