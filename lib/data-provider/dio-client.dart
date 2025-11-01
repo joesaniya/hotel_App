@@ -35,26 +35,41 @@ class DioClient {
   Future<Response?> performCall({
     required RequestType requestType,
     required String url,
-    // required String basicAuth,
     String basicAuth = '',
     Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? headers, // Add custom headers support
     data,
   }) async {
     log(url);
-    log(basicAuth);
 
     late Response response;
     queryParameters = queryParameters == null || queryParameters.isEmpty
         ? {}
         : queryParameters;
     data = data ?? {};
+
+    // Build headers
+    Map<String, dynamic> requestHeaders = {'Content-Type': 'application/json'};
+
+    // Add authorization header if provided (legacy support)
+    if (basicAuth.isNotEmpty) {
+      requestHeaders['authorization'] = basicAuth;
+    }
+
+    // Merge with custom headers if provided (this will override above if needed)
+    if (headers != null) {
+      requestHeaders.addAll(headers);
+    }
+
+    log('Request headers: $requestHeaders');
+
     try {
       switch (requestType) {
         case RequestType.get:
           response = await _dio.get(
             url,
             queryParameters: queryParameters,
-            options: Options(headers: {'authorization': basicAuth}),
+            options: Options(headers: requestHeaders),
           );
           break;
         case RequestType.post:
@@ -62,7 +77,7 @@ class DioClient {
             url,
             queryParameters: queryParameters,
             data: data,
-            options: Options(headers: {'authorization': basicAuth}),
+            options: Options(headers: requestHeaders),
           );
           break;
         case RequestType.put:
@@ -70,29 +85,32 @@ class DioClient {
             url,
             queryParameters: queryParameters,
             data: data,
-            options: Options(headers: {'authorization': basicAuth}),
+            options: Options(headers: requestHeaders),
           );
           break;
         case RequestType.delete:
           response = await _dio.delete(
             url,
             queryParameters: queryParameters,
-            options: Options(
-              headers: <String, String>{'authorization': basicAuth},
-            ),
+            options: Options(headers: requestHeaders),
           );
           break;
       }
     } on PlatformException catch (err) {
       log("platform exception happened: $err");
       return response;
+    } on DioException catch (error) {
+      log("Dio exception: ${error.response?.statusCode} - ${error.message}");
+      return error.response;
     } catch (error) {
+      log("Unknown error: $error");
       return null;
     }
+
     if (response.statusCode == 200 || response.statusCode == 201) {
       return response;
     } else {
-      return null;
+      return response; // Return response even on error for debugging
     }
   }
 }

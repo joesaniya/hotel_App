@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class LocalStorageService {
   static const _userKey = 'google_user';
+  static const _visitorTokenKey = 'visitor_token';
 
   /// Save user details locally
   static Future<void> saveUser(User user) async {
@@ -25,9 +26,22 @@ class LocalStorageService {
     return jsonDecode(data);
   }
 
+  /// Save visitor token
+  static Future<void> saveVisitorToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_visitorTokenKey, token);
+  }
+
+  /// Get visitor token
+  static Future<String?> getVisitorToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_visitorTokenKey);
+  }
+
   /// Clear stored user data
   static Future<void> clearUser() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_userKey);
+    await prefs.remove(_visitorTokenKey);
   }
 }
