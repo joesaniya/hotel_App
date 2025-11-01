@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hotel_app/business_logic/auth-provider.dart';
 import 'package:hotel_app/business_logic/home_provider.dart';
 import 'package:hotel_app/models/search_result.dart';
+import 'package:hotel_app/models/static_modal.dart';
 import 'package:hotel_app/screens/bottom_sheet_widget/search_filter_bottomsheet.dart';
 import 'package:hotel_app/screens/hotel_result_screen.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +20,75 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  bool _showSuggestions = false;
+
+  // Static popular hotels data
+  final List<StaticHotel> _popularHotels = [
+    StaticHotel(
+      name: 'Santorini',
+      location: 'Greece',
+      price: '\$488',
+      rating: '4.9',
+      imageUrl:
+          'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=400',
+    ),
+    StaticHotel(
+      name: 'Hotel Royal',
+      location: 'Spain',
+      price: '\$280',
+      rating: '4.8',
+      imageUrl:
+          'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400',
+    ),
+    StaticHotel(
+      name: 'Grand Palace',
+      location: 'France',
+      price: '\$350',
+      rating: '4.7',
+      imageUrl:
+          'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400',
+    ),
+    StaticHotel(
+      name: 'Ocean View Resort',
+      location: 'Maldives',
+      price: '\$520',
+      rating: '4.9',
+      imageUrl:
+          'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400',
+    ),
+  ];
+
+  // Static hot deals data
+  final List<StaticDeal> _hotDeals = [
+    StaticDeal(
+      name: 'Bali Motel Vung Tau',
+      location: 'Indonesia',
+      price: '\$580',
+      rating: '4.9',
+      discount: '5% OFF',
+      imageUrl:
+          'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=400',
+    ),
+    StaticDeal(
+      name: 'Tropical Paradise',
+      location: 'Thailand',
+      price: '\$420',
+      rating: '4.8',
+      discount: '10% OFF',
+      imageUrl:
+          'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400',
+    ),
+    StaticDeal(
+      name: 'Beach Resort',
+      location: 'Philippines',
+      price: '\$350',
+      rating: '4.7',
+      discount: '15% OFF',
+      imageUrl:
+          'https://images.unsplash.com/photo-1445019980597-93fa8acb246c?w=400',
+    ),
+  ];
 
   @override
   void initState() {
@@ -26,26 +96,43 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<HomeProvider>().initialize();
     });
+
+    _searchFocusNode.addListener(() {
+      setState(() {
+        _showSuggestions =
+            _searchFocusNode.hasFocus && _searchController.text.isNotEmpty;
+      });
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
   void _handleSearchChange(String value) {
     final homeProvider = context.read<HomeProvider>();
-    if (value.isNotEmpty) {
+
+    setState(() {
+      _showSuggestions = value.isNotEmpty;
+    });
+
+    if (value.isNotEmpty && value.length >= 3) {
       homeProvider.performAutoCompleteSearch(value);
-    } else {
+    } else if (value.isEmpty) {
       homeProvider.resetToDefault();
     }
   }
 
   void _handleClearSearch() {
     _searchController.clear();
+    setState(() {
+      _showSuggestions = false;
+    });
     context.read<HomeProvider>().resetToDefault();
+    _searchFocusNode.unfocus();
   }
 
   void _handleSearchTypeChange(String type) {
@@ -59,18 +146,47 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _handleSuggestionTap(SearchResult result) {
+    _searchController.text = result.name;
+    setState(() {
+      _showSuggestions = false;
+    });
+    _searchFocusNode.unfocus();
+
+    if (result.type.toLowerCase() == 'bypropertyname' ||
+        result.type.toLowerCase() == 'hotel') {
+      _navigateToHotelDetails(result);
+    } else {
+      _showSearchFilterSheet(result);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: Colors.grey[50],
       appBar: _buildAppBar(authProvider),
-      body: Column(
-        children: [
-          _buildSearchSection(),
-          Expanded(child: _buildLocationResultsSection()),
-        ],
+      body: GestureDetector(
+        onTap: () {
+          setState(() {
+            _showSuggestions = false;
+          });
+          _searchFocusNode.unfocus();
+        },
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                _buildSearchSection(),
+                Expanded(child: _buildMainContent()),
+              ],
+            ),
+            if (_showSuggestions && _searchController.text.length >= 3)
+              _buildSearchSuggestionsOverlay(),
+          ],
+        ),
       ),
     );
   }
@@ -84,12 +200,13 @@ class _HomeScreenState extends State<HomeScreen> {
         style: GoogleFonts.poppins(
           color: Colors.black87,
           fontWeight: FontWeight.w600,
+          fontSize: 20,
         ),
       ),
       actions: [
         IconButton(
           icon: CircleAvatar(
-            radius: 16,
+            radius: 18,
             backgroundImage: widget.user.photoURL != null
                 ? NetworkImage(widget.user.photoURL!)
                 : null,
@@ -110,47 +227,62 @@ class _HomeScreenState extends State<HomeScreen> {
         return Container(
           color: Colors.white,
           padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              _buildSearchBar(),
-              const SizedBox(height: 12),
-              _buildSearchTypeFilter(homeProvider),
-            ],
-          ),
+          child: Column(children: [_buildSearchBarWithFilters(homeProvider)]),
         );
       },
     );
   }
 
-  Widget _buildSearchBar() {
-    return TextField(
-      controller: _searchController,
-      onChanged: _handleSearchChange,
-      decoration: InputDecoration(
-        hintText: 'Search hotels, cities, states...',
-        hintStyle: GoogleFonts.poppins(color: Colors.grey[400], fontSize: 14),
-        prefixIcon: const Icon(Icons.search, color: Colors.grey),
-        suffixIcon: _searchController.text.isNotEmpty
-            ? IconButton(
-                icon: const Icon(Icons.clear, color: Colors.grey),
-                onPressed: _handleClearSearch,
-              )
-            : null,
-        filled: true,
-        fillColor: Colors.grey[100],
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+  Widget _buildSearchBarWithFilters(HomeProvider homeProvider) {
+    final isSearching = _searchController.text.isNotEmpty;
+
+    return Column(
+      children: [
+        TextField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          onChanged: _handleSearchChange,
+          onTap: () {
+            if (_searchController.text.isNotEmpty) {
+              setState(() {
+                _showSuggestions = true;
+              });
+            }
+          },
+          decoration: InputDecoration(
+            hintText: 'Search hotels, cities, states...',
+            hintStyle: GoogleFonts.poppins(
+              color: Colors.grey[400],
+              fontSize: 14,
+            ),
+            prefixIcon: const Icon(Icons.search, color: Colors.grey),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, color: Colors.grey),
+                    onPressed: _handleClearSearch,
+                  )
+                : null,
+            filled: true,
+            fillColor: Colors.grey[100],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+          ),
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
-      ),
+        if (isSearching) ...[
+          const SizedBox(height: 12),
+          _buildInlineSearchTypeFilter(homeProvider),
+        ],
+      ],
     );
   }
 
-  Widget _buildSearchTypeFilter(HomeProvider homeProvider) {
+  Widget _buildInlineSearchTypeFilter(HomeProvider homeProvider) {
     final searchTypes = ['All', 'City', 'State', 'Country', 'Property'];
 
     return SingleChildScrollView(
@@ -165,11 +297,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   selected: homeProvider.selectedSearchType == type,
                   onSelected: (selected) => _handleSearchTypeChange(type),
                   selectedColor: Colors.blue,
+                  backgroundColor: Colors.grey[200],
                   labelStyle: TextStyle(
                     color: homeProvider.selectedSearchType == type
                         ? Colors.white
                         : Colors.black87,
                     fontSize: 12,
+                    fontWeight: homeProvider.selectedSearchType == type
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
                   ),
                 ),
               ),
@@ -179,135 +319,531 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildLocationResultsSection() {
-    return Consumer<HomeProvider>(
-      builder: (context, homeProvider, _) {
-        if (homeProvider.isSearching) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (homeProvider.searchResults.isEmpty && homeProvider.hasSearched) {
-          return _buildEmptyState();
-        }
-
-        if (homeProvider.searchResults.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        return _buildLocationResultsList(homeProvider.searchResults);
-      },
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            'No results found',
-            style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Try searching for a different location',
-            style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[400]),
-          ),
-        ],
+  Widget _buildSearchSuggestionsOverlay() {
+    return Positioned(
+      top: 80,
+      left: 0,
+      right: 0,
+      child: Consumer<HomeProvider>(
+        builder: (context, homeProvider, _) {
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            constraints: const BoxConstraints(maxHeight: 300),
+            child: _buildSearchSuggestions(homeProvider),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildLocationResultsList(List<SearchResult> results) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: results.length,
+  Widget _buildSearchSuggestions(HomeProvider homeProvider) {
+    if (homeProvider.isSearching) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (homeProvider.searchResults.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          'No suggestions found',
+          style: GoogleFonts.poppins(color: Colors.grey[600], fontSize: 14),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: homeProvider.searchResults.length,
+      separatorBuilder: (context, index) =>
+          Divider(height: 1, color: Colors.grey[200]),
       itemBuilder: (context, index) {
-        return _buildLocationCard(results[index]);
+        final result = homeProvider.searchResults[index];
+        return _buildSuggestionItem(result);
       },
     );
   }
 
-  Widget _buildLocationCard(SearchResult result) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: () => _showSearchFilterSheet(result),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  _getIconForType(result.type),
-                  color: Colors.blue[700],
-                  size: 32,
-                ),
+  Widget _buildSuggestionItem(SearchResult result) {
+    return InkWell(
+      onTap: () => _handleSuggestionTap(result),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      result.name,
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+              child: Icon(
+                _getIconForType(result.type),
+                color: Colors.blue[700],
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    result.name,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
-                    if (result.displayLocation.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        result.displayLocation,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                        ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (result.displayLocation.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      result.displayLocation,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[600],
                       ),
-                    ],
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        result.type.toUpperCase(),
-                        style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.blue[700],
-                        ),
-                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                _getDisplayType(result.type),
+                style: GoogleFonts.poppins(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blue[700],
                 ),
               ),
-              Icon(Icons.chevron_right, color: Colors.grey[400]),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // FIXED: Properly handle navigation after filter selection
+  String _getDisplayType(String type) {
+    final typeMap = {
+      'bypropertyname': 'HOTEL',
+      'bycity': 'CITY',
+      'bystate': 'STATE',
+      'bycountry': 'COUNTRY',
+      'bystreet': 'STREET',
+    };
+    return typeMap[type.toLowerCase()] ?? type.toUpperCase();
+  }
+
+  Widget _buildMainContent() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          const SizedBox(height: 16),
+          _buildPopularHotelsSection(),
+          const SizedBox(height: 24),
+          _buildHotDealsSection(),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPopularHotelsSection() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Popular Hotels',
+                style: GoogleFonts.poppins(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  // Navigate to see all popular hotels
+                },
+                child: Text(
+                  'See all',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.orange[400],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 220,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _popularHotels.length,
+            itemBuilder: (context, index) {
+              return _buildPopularHotelCard(_popularHotels[index]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPopularHotelCard(StaticHotel hotel) {
+    return Container(
+      width: 180,
+      margin: const EdgeInsets.only(right: 16),
+      child: GestureDetector(
+        onTap: () {
+          // Handle hotel tap
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Selected: ${hotel.name}')));
+        },
+        child: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                image: DecorationImage(
+                  image: NetworkImage(hotel.imageUrl),
+                  fit: BoxFit.cover,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 12,
+              left: 12,
+              right: 12,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hotel.name,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          hotel.location,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${hotel.price}/night',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[400],
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.star,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              hotel.rating,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHotDealsSection() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Hot Deals',
+                style: GoogleFonts.poppins(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  // Navigate to see all hot deals
+                },
+                child: Text(
+                  'See all',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.orange[400],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 200,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _hotDeals.length,
+            itemBuilder: (context, index) {
+              return _buildHotDealCard(_hotDeals[index]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHotDealCard(StaticDeal deal) {
+    return Container(
+      width: 280,
+      margin: const EdgeInsets.only(right: 16),
+      child: GestureDetector(
+        onTap: () {
+          // Handle deal tap
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Selected: ${deal.name}')));
+        },
+        child: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                image: DecorationImage(
+                  image: NetworkImage(deal.imageUrl),
+                  fit: BoxFit.cover,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+                ),
+              ),
+            ),
+            Positioned(
+              top: 12,
+              left: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.orange[400],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  deal.discount,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 12,
+              left: 12,
+              right: 12,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    deal.name,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          deal.location,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[400],
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.star,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              deal.rating,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${deal.price}/night',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showSearchFilterSheet(SearchResult result) {
     final homeProvider = context.read<HomeProvider>();
 
@@ -322,16 +858,9 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_, controller) => SearchFilterBottomSheet(
           initialCriteria: homeProvider.searchCriteria,
           onSearch: (criteria) async {
-            // Store criteria in provider
             homeProvider.setSearchCriteria(criteria);
-            
-            // Close the bottom sheet first
             Navigator.pop(context);
-            
-            // Small delay to ensure bottom sheet is fully closed
             await Future.delayed(const Duration(milliseconds: 100));
-            
-            // Then navigate to hotel results
             if (mounted) {
               _navigateToHotelResults(result, criteria);
             }
@@ -341,15 +870,43 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // FIXED: Separate navigation method with proper error handling
+  Future<void> _navigateToHotelDetails(SearchResult result) async {
+    try {
+      final criteria = SearchCriteria(
+        checkInDate: DateTime.now().add(const Duration(days: 1)),
+        checkOutDate: DateTime.now().add(const Duration(days: 2)),
+        rooms: 1,
+        adults: 2,
+        children: 0,
+        accommodations: ['all'],
+        excludedSearchTypes: [],
+        minPrice: 0,
+        maxPrice: 30000,
+      );
+
+      log('Navigating to hotel details for: ${result.name}');
+      await _navigateToHotelResults(result, criteria);
+    } catch (e) {
+      log('❌ Error navigating to hotel details: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _navigateToHotelResults(
     SearchResult result,
     SearchCriteria criteria,
   ) async {
     try {
-      // Log search details for debugging
       final queryList = result.getSearchQueryList();
-      
+
       if (queryList.isEmpty) {
         log('⚠️ Warning: No query list found, using result ID as fallback');
         log('Result ID: ${result.id}');
@@ -362,10 +919,7 @@ class _HomeScreenState extends State<HomeScreen> {
       log('Check-in: ${criteria.checkIn}');
       log('Check-out: ${criteria.checkOut}');
       log('Rooms: ${criteria.rooms}, Adults: ${criteria.adults}');
-      log('Accommodations: ${criteria.accommodations}');
-      log('Price Range: ${criteria.minPrice} - ${criteria.maxPrice}');
 
-      // Navigate to hotel results screen
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -377,7 +931,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     } catch (e) {
       log('❌ Error navigating to hotel results: $e');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -391,18 +945,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   IconData _getIconForType(String type) {
-    switch (type.toLowerCase()) {
-      case 'hotel':
-        return Icons.hotel;
-      case 'city':
-        return Icons.location_city;
-      case 'state':
-        return Icons.map;
-      case 'country':
-        return Icons.public;
-      default:
-        return Icons.place;
-    }
+    final typeMap = {
+      'bypropertyname': Icons.hotel,
+      'bycity': Icons.location_city,
+      'bystate': Icons.map,
+      'bycountry': Icons.public,
+      'bystreet': Icons.place,
+    };
+    return typeMap[type.toLowerCase()] ?? Icons.place;
   }
 
   void _showProfileMenu(AuthProvider authProvider) {
@@ -499,3 +1049,2376 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 }
+
+
+
+
+
+// /*import 'dart:developer';
+// import 'package:flutter/material.dart';
+// import 'package:google_fonts/google_fonts.dart';
+// import 'package:hotel_app/business_logic/auth-provider.dart';
+// import 'package:hotel_app/business_logic/home_provider.dart';
+// import 'package:hotel_app/models/search_result.dart';
+// import 'package:hotel_app/screens/bottom_sheet_widget/search_filter_bottomsheet.dart';
+// import 'package:hotel_app/screens/hotel_result_screen.dart';
+
+// import 'package:provider/provider.dart';
+// import 'sign_in_screen.dart';
+
+// class HomeScreen extends StatefulWidget {
+//   final dynamic user;
+//   const HomeScreen({super.key, required this.user});
+
+//   @override
+//   State<HomeScreen> createState() => _HomeScreenState();
+// }
+
+// class _HomeScreenState extends State<HomeScreen> {
+//   final TextEditingController _searchController = TextEditingController();
+//   final FocusNode _searchFocusNode = FocusNode();
+//   bool _showSuggestions = false;
+
+//   @override
+//   void initState() {
+//     super.initState();
+//     WidgetsBinding.instance.addPostFrameCallback((_) {
+//       context.read<HomeProvider>().initialize();
+//     });
+
+//     _searchFocusNode.addListener(() {
+//       setState(() {
+//         _showSuggestions =
+//             _searchFocusNode.hasFocus && _searchController.text.isNotEmpty;
+//       });
+//     });
+//   }
+
+//   @override
+//   void dispose() {
+//     _searchController.dispose();
+//     _searchFocusNode.dispose();
+//     super.dispose();
+//   }
+
+//   void _handleSearchChange(String value) {
+//     final homeProvider = context.read<HomeProvider>();
+
+//     setState(() {
+//       _showSuggestions = value.isNotEmpty;
+//     });
+
+//     if (value.isNotEmpty && value.length >= 3) {
+//       homeProvider.performAutoCompleteSearch(value);
+//     } else if (value.isEmpty) {
+//       homeProvider.resetToDefault();
+//     }
+//   }
+
+//   void _handleClearSearch() {
+//     _searchController.clear();
+//     setState(() {
+//       _showSuggestions = false;
+//     });
+//     context.read<HomeProvider>().resetToDefault();
+//     _searchFocusNode.unfocus();
+//   }
+
+//   void _handleSearchTypeChange(String type) {
+//     final homeProvider = context.read<HomeProvider>();
+//     homeProvider.setSearchType(type);
+
+//     if (_searchController.text.isNotEmpty) {
+//       homeProvider.performAutoCompleteSearch(_searchController.text);
+//     } else {
+//       homeProvider.initialize();
+//     }
+//   }
+
+//   void _handleSuggestionTap(SearchResult result) {
+//     _searchController.text = result.name;
+//     setState(() {
+//       _showSuggestions = false;
+//     });
+//     _searchFocusNode.unfocus();
+
+//     // If it's a hotel/property, go directly to hotel details
+//     if (result.type.toLowerCase() == 'bypropertyname' ||
+//         result.type.toLowerCase() == 'hotel') {
+//       _navigateToHotelDetails(result);
+//     } else {
+//       // For other types, show filter sheet
+//       _showSearchFilterSheet(result);
+//     }
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     final authProvider = Provider.of<AuthProvider>(context);
+
+//     return Scaffold(
+//       backgroundColor: Colors.grey[100],
+//       appBar: _buildAppBar(authProvider),
+//       body: GestureDetector(
+//         onTap: () {
+//           setState(() {
+//             _showSuggestions = false;
+//           });
+//           _searchFocusNode.unfocus();
+//         },
+//         child: Column(
+//           children: [
+//             _buildSearchSection(),
+//             Expanded(child: _buildMainContent()),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+
+//   PreferredSizeWidget _buildAppBar(AuthProvider authProvider) {
+//     return AppBar(
+//       elevation: 0,
+//       backgroundColor: Colors.white,
+//       title: Text(
+//         'Discover Hotels',
+//         style: GoogleFonts.poppins(
+//           color: Colors.black87,
+//           fontWeight: FontWeight.w600,
+//         ),
+//       ),
+//       actions: [
+//         IconButton(
+//           icon: CircleAvatar(
+//             radius: 16,
+//             backgroundImage: widget.user.photoURL != null
+//                 ? NetworkImage(widget.user.photoURL!)
+//                 : null,
+//             child: widget.user.photoURL == null
+//                 ? const Icon(Icons.person, size: 20)
+//                 : null,
+//           ),
+//           onPressed: () => _showProfileMenu(authProvider),
+//         ),
+//         const SizedBox(width: 8),
+//       ],
+//     );
+//   }
+
+//   Widget _buildSearchSection() {
+//     return Consumer<HomeProvider>(
+//       builder: (context, homeProvider, _) {
+//         return Container(
+//           color: Colors.white,
+//           child: Column(
+//             children: [
+//               Padding(
+//                 padding: const EdgeInsets.all(16),
+//                 child: Column(
+//                   children: [_buildSearchBarWithFilters(homeProvider)],
+//                 ),
+//               ),
+//               if (_showSuggestions && _searchController.text.length >= 3)
+//                 _buildSearchSuggestions(homeProvider),
+//             ],
+//           ),
+//         );
+//       },
+//     );
+//   }
+
+//   Widget _buildSearchBarWithFilters(HomeProvider homeProvider) {
+//     final isSearching = _searchController.text.isNotEmpty;
+
+//     return Column(
+//       children: [
+//         TextField(
+//           controller: _searchController,
+//           focusNode: _searchFocusNode,
+//           onChanged: _handleSearchChange,
+//           onTap: () {
+//             if (_searchController.text.isNotEmpty) {
+//               setState(() {
+//                 _showSuggestions = true;
+//               });
+//             }
+//           },
+//           decoration: InputDecoration(
+//             hintText: 'Search hotels, cities, states...',
+//             hintStyle: GoogleFonts.poppins(
+//               color: Colors.grey[400],
+//               fontSize: 14,
+//             ),
+//             prefixIcon: const Icon(Icons.search, color: Colors.grey),
+//             suffixIcon: _searchController.text.isNotEmpty
+//                 ? IconButton(
+//                     icon: const Icon(Icons.clear, color: Colors.grey),
+//                     onPressed: _handleClearSearch,
+//                   )
+//                 : null,
+//             filled: true,
+//             fillColor: Colors.grey[100],
+//             border: OutlineInputBorder(
+//               borderRadius: BorderRadius.circular(12),
+//               borderSide: BorderSide.none,
+//             ),
+//             contentPadding: const EdgeInsets.symmetric(
+//               horizontal: 16,
+//               vertical: 12,
+//             ),
+//           ),
+//         ),
+//         // Inline filter chips that appear when typing
+//         if (isSearching) ...[
+//           const SizedBox(height: 12),
+//           _buildInlineSearchTypeFilter(homeProvider),
+//         ],
+//       ],
+//     );
+//   }
+
+//   Widget _buildInlineSearchTypeFilter(HomeProvider homeProvider) {
+//     final searchTypes = ['All', 'City', 'State', 'Country', 'Property'];
+
+//     return SingleChildScrollView(
+//       scrollDirection: Axis.horizontal,
+//       child: Row(
+//         children: searchTypes
+//             .map(
+//               (type) => Padding(
+//                 padding: const EdgeInsets.only(right: 8),
+//                 child: FilterChip(
+//                   label: Text(type),
+//                   selected: homeProvider.selectedSearchType == type,
+//                   onSelected: (selected) => _handleSearchTypeChange(type),
+//                   selectedColor: Colors.blue,
+//                   backgroundColor: Colors.grey[200],
+//                   labelStyle: TextStyle(
+//                     color: homeProvider.selectedSearchType == type
+//                         ? Colors.white
+//                         : Colors.black87,
+//                     fontSize: 12,
+//                     fontWeight: homeProvider.selectedSearchType == type
+//                         ? FontWeight.w600
+//                         : FontWeight.normal,
+//                   ),
+//                   padding: const EdgeInsets.symmetric(
+//                     horizontal: 12,
+//                     vertical: 8,
+//                   ),
+//                 ),
+//               ),
+//             )
+//             .toList(),
+//       ),
+//     );
+//   }
+
+//   Widget _buildSearchSuggestions(HomeProvider homeProvider) {
+//     if (homeProvider.isSearching) {
+//       return Container(
+//         padding: const EdgeInsets.all(16),
+//         child: const Center(child: CircularProgressIndicator()),
+//       );
+//     }
+
+//     if (homeProvider.searchResults.isEmpty) {
+//       return Container(
+//         padding: const EdgeInsets.all(16),
+//         child: Text(
+//           'No suggestions found',
+//           style: GoogleFonts.poppins(color: Colors.grey[600], fontSize: 14),
+//         ),
+//       );
+//     }
+
+//     return Container(
+//       constraints: const BoxConstraints(maxHeight: 300),
+//       decoration: BoxDecoration(
+//         color: Colors.white,
+//         border: Border(top: BorderSide(color: Colors.grey[200]!)),
+//       ),
+//       child: ListView.separated(
+//         shrinkWrap: true,
+//         padding: const EdgeInsets.symmetric(vertical: 8),
+//         itemCount: homeProvider.searchResults.length,
+//         separatorBuilder: (context, index) =>
+//             Divider(height: 1, color: Colors.grey[200]),
+//         itemBuilder: (context, index) {
+//           final result = homeProvider.searchResults[index];
+//           return _buildSuggestionItem(result);
+//         },
+//       ),
+//     );
+//   }
+
+//   Widget _buildSuggestionItem(SearchResult result) {
+//     return InkWell(
+//       onTap: () => _handleSuggestionTap(result),
+//       child: Padding(
+//         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+//         child: Row(
+//           children: [
+//             Container(
+//               width: 40,
+//               height: 40,
+//               decoration: BoxDecoration(
+//                 color: Colors.blue[50],
+//                 borderRadius: BorderRadius.circular(8),
+//               ),
+//               child: Icon(
+//                 _getIconForType(result.type),
+//                 color: Colors.blue[700],
+//                 size: 20,
+//               ),
+//             ),
+//             const SizedBox(width: 12),
+//             Expanded(
+//               child: Column(
+//                 crossAxisAlignment: CrossAxisAlignment.start,
+//                 children: [
+//                   Text(
+//                     result.name,
+//                     style: GoogleFonts.poppins(
+//                       fontSize: 14,
+//                       fontWeight: FontWeight.w500,
+//                     ),
+//                     maxLines: 1,
+//                     overflow: TextOverflow.ellipsis,
+//                   ),
+//                   if (result.displayLocation.isNotEmpty) ...[
+//                     const SizedBox(height: 2),
+//                     Text(
+//                       result.displayLocation,
+//                       style: GoogleFonts.poppins(
+//                         fontSize: 12,
+//                         color: Colors.grey[600],
+//                       ),
+//                       maxLines: 1,
+//                       overflow: TextOverflow.ellipsis,
+//                     ),
+//                   ],
+//                 ],
+//               ),
+//             ),
+//             Container(
+//               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+//               decoration: BoxDecoration(
+//                 color: Colors.blue[50],
+//                 borderRadius: BorderRadius.circular(4),
+//               ),
+//               child: Text(
+//                 _getDisplayType(result.type),
+//                 style: GoogleFonts.poppins(
+//                   fontSize: 9,
+//                   fontWeight: FontWeight.w600,
+//                   color: Colors.blue[700],
+//                 ),
+//               ),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+
+//   String _getDisplayType(String type) {
+//     final typeMap = {
+//       'bypropertyname': 'HOTEL',
+//       'bycity': 'CITY',
+//       'bystate': 'STATE',
+//       'bycountry': 'COUNTRY',
+//       'bystreet': 'STREET',
+//     };
+//     return typeMap[type.toLowerCase()] ?? type.toUpperCase();
+//   }
+
+//   Widget _buildMainContent() {
+//     if (_showSuggestions && _searchController.text.length >= 3) {
+//       return const SizedBox.shrink();
+//     }
+
+//     return _buildLocationResultsSection();
+//   }
+
+//   Widget _buildLocationResultsSection() {
+//     return Consumer<HomeProvider>(
+//       builder: (context, homeProvider, _) {
+//         if (homeProvider.isSearching) {
+//           return const Center(child: CircularProgressIndicator());
+//         }
+
+//         if (homeProvider.searchResults.isEmpty && homeProvider.hasSearched) {
+//           return _buildEmptyState();
+//         }
+
+//         if (homeProvider.searchResults.isEmpty) {
+//           return const Center(child: CircularProgressIndicator());
+//         }
+
+//         return _buildLocationResultsList(homeProvider.searchResults);
+//       },
+//     );
+//   }
+
+//   Widget _buildEmptyState() {
+//     return Center(
+//       child: Column(
+//         mainAxisAlignment: MainAxisAlignment.center,
+//         children: [
+//           Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+//           const SizedBox(height: 16),
+//           Text(
+//             'No results found',
+//             style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
+//           ),
+//           const SizedBox(height: 8),
+//           Text(
+//             'Try searching for a different location',
+//             style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[400]),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _buildLocationResultsList(List<SearchResult> results) {
+//     return ListView.builder(
+//       padding: const EdgeInsets.all(16),
+//       itemCount: results.length,
+//       itemBuilder: (context, index) {
+//         return _buildLocationCard(results[index]);
+//       },
+//     );
+//   }
+
+//   Widget _buildLocationCard(SearchResult result) {
+//     return Card(
+//       margin: const EdgeInsets.only(bottom: 16),
+//       elevation: 2,
+//       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+//       child: InkWell(
+//         onTap: () {
+//           // If hotel/property, go to details; else show filter sheet
+//           if (result.type.toLowerCase() == 'bypropertyname' ||
+//               result.type.toLowerCase() == 'hotel') {
+//             _navigateToHotelDetails(result);
+//           } else {
+//             _showSearchFilterSheet(result);
+//           }
+//         },
+//         borderRadius: BorderRadius.circular(12),
+//         child: Padding(
+//           padding: const EdgeInsets.all(16),
+//           child: Row(
+//             children: [
+//               Container(
+//                 width: 60,
+//                 height: 60,
+//                 decoration: BoxDecoration(
+//                   color: Colors.blue[50],
+//                   borderRadius: BorderRadius.circular(8),
+//                 ),
+//                 child: Icon(
+//                   _getIconForType(result.type),
+//                   color: Colors.blue[700],
+//                   size: 32,
+//                 ),
+//               ),
+//               const SizedBox(width: 16),
+//               Expanded(
+//                 child: Column(
+//                   crossAxisAlignment: CrossAxisAlignment.start,
+//                   children: [
+//                     Text(
+//                       result.name,
+//                       style: GoogleFonts.poppins(
+//                         fontSize: 16,
+//                         fontWeight: FontWeight.w600,
+//                       ),
+//                     ),
+//                     if (result.displayLocation.isNotEmpty) ...[
+//                       const SizedBox(height: 4),
+//                       Text(
+//                         result.displayLocation,
+//                         style: GoogleFonts.poppins(
+//                           fontSize: 13,
+//                           color: Colors.grey[600],
+//                         ),
+//                       ),
+//                     ],
+//                     const SizedBox(height: 4),
+//                     Container(
+//                       padding: const EdgeInsets.symmetric(
+//                         horizontal: 8,
+//                         vertical: 2,
+//                       ),
+//                       decoration: BoxDecoration(
+//                         color: Colors.blue[50],
+//                         borderRadius: BorderRadius.circular(4),
+//                       ),
+//                       child: Text(
+//                         _getDisplayType(result.type),
+//                         style: GoogleFonts.poppins(
+//                           fontSize: 10,
+//                           fontWeight: FontWeight.w600,
+//                           color: Colors.blue[700],
+//                         ),
+//                       ),
+//                     ),
+//                   ],
+//                 ),
+//               ),
+//               Icon(Icons.chevron_right, color: Colors.grey[400]),
+//             ],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+
+//   void _showSearchFilterSheet(SearchResult result) {
+//     final homeProvider = context.read<HomeProvider>();
+
+//     showModalBottomSheet(
+//       context: context,
+//       isScrollControlled: true,
+//       backgroundColor: Colors.transparent,
+//       builder: (context) => DraggableScrollableSheet(
+//         initialChildSize: 0.9,
+//         minChildSize: 0.5,
+//         maxChildSize: 0.95,
+//         builder: (_, controller) => SearchFilterBottomSheet(
+//           initialCriteria: homeProvider.searchCriteria,
+//           onSearch: (criteria) async {
+//             homeProvider.setSearchCriteria(criteria);
+//             Navigator.pop(context);
+//             await Future.delayed(const Duration(milliseconds: 100));
+//             if (mounted) {
+//               _navigateToHotelResults(result, criteria);
+//             }
+//           },
+//         ),
+//       ),
+//     );
+//   }
+
+//   Future<void> _navigateToHotelDetails(SearchResult result) async {
+//     try {
+//       // Create default search criteria for hotel details
+//       final criteria = SearchCriteria(
+//         checkInDate: DateTime.now().add(const Duration(days: 1)),
+//         checkOutDate: DateTime.now().add(const Duration(days: 2)),
+//         rooms: 1,
+//         adults: 2,
+//         children: 0,
+//         accommodations: ['all'],
+//         excludedSearchTypes: [],
+//         minPrice: 0,
+//         maxPrice: 30000,
+//       );
+
+//       // Fetch hotel details using the search service
+//       final homeProvider = context.read<HomeProvider>();
+
+//       // You'll need to implement this method in your HomeProvider
+//       // to fetch a single hotel by its ID
+//       log('Navigating to hotel details for: ${result.name}');
+
+//       // For now, navigate to hotel results and show the first hotel
+//       await _navigateToHotelResults(result, criteria);
+//     } catch (e) {
+//       log('❌ Error navigating to hotel details: $e');
+//       if (mounted) {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           SnackBar(
+//             content: Text('Error: ${e.toString()}'),
+//             backgroundColor: Colors.red,
+//             duration: const Duration(seconds: 3),
+//           ),
+//         );
+//       }
+//     }
+//   }
+
+//   Future<void> _navigateToHotelResults(
+//     SearchResult result,
+//     SearchCriteria criteria,
+//   ) async {
+//     try {
+//       final queryList = result.getSearchQueryList();
+
+//       if (queryList.isEmpty) {
+//         log('⚠️ Warning: No query list found, using result ID as fallback');
+//         log('Result ID: ${result.id}');
+//         log('Result Type: ${result.type}');
+//       } else {
+//         log('✅ Query List: ${queryList.join(", ")}');
+//       }
+
+//       log('Search Type: ${result.getSearchTypeForAPI()}');
+//       log('Check-in: ${criteria.checkIn}');
+//       log('Check-out: ${criteria.checkOut}');
+//       log('Rooms: ${criteria.rooms}, Adults: ${criteria.adults}');
+
+//       await Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           builder: (context) => HotelResultsScreen(
+//             searchResult: result,
+//             searchCriteria: criteria,
+//           ),
+//         ),
+//       );
+//     } catch (e) {
+//       log('❌ Error navigating to hotel results: $e');
+
+//       if (mounted) {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           SnackBar(
+//             content: Text('Error: ${e.toString()}'),
+//             backgroundColor: Colors.red,
+//             duration: const Duration(seconds: 3),
+//           ),
+//         );
+//       }
+//     }
+//   }
+
+//   IconData _getIconForType(String type) {
+//     final typeMap = {
+//       'bypropertyname': Icons.hotel,
+//       'bycity': Icons.location_city,
+//       'bystate': Icons.map,
+//       'bycountry': Icons.public,
+//       'bystreet': Icons.place,
+//     };
+//     return typeMap[type.toLowerCase()] ?? Icons.place;
+//   }
+
+//   void _showProfileMenu(AuthProvider authProvider) {
+//     showModalBottomSheet(
+//       context: context,
+//       shape: const RoundedRectangleBorder(
+//         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+//       ),
+//       builder: (context) => _buildProfileMenu(authProvider),
+//     );
+//   }*/
+// import 'dart:developer';
+// import 'package:flutter/material.dart';
+// import 'package:google_fonts/google_fonts.dart';
+// import 'package:hotel_app/business_logic/auth-provider.dart';
+// import 'package:hotel_app/business_logic/home_provider.dart';
+// import 'package:hotel_app/models/search_result.dart';
+// import 'package:hotel_app/models/static_modal.dart';
+// import 'package:hotel_app/screens/bottom_sheet_widget/search_filter_bottomsheet.dart';
+// import 'package:hotel_app/screens/hotel_result_screen.dart';
+// import 'package:provider/provider.dart';
+// import 'sign_in_screen.dart';
+
+// class HomeScreen extends StatefulWidget {
+//   final dynamic user;
+//   const HomeScreen({super.key, required this.user});
+
+//   @override
+//   State<HomeScreen> createState() => _HomeScreenState();
+// }
+
+// class _HomeScreenState extends State<HomeScreen> {
+//   final TextEditingController _searchController = TextEditingController();
+//   final FocusNode _searchFocusNode = FocusNode();
+//   bool _showSuggestions = false;
+
+//   // Static popular hotels data
+//   final List<StaticHotel> _popularHotels = [
+//     StaticHotel(
+//       name: 'Santorini',
+//       location: 'Greece',
+//       price: '\$488',
+//       rating: '4.9',
+//       imageUrl:
+//           'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=400',
+//     ),
+//     StaticHotel(
+//       name: 'Hotel Royal',
+//       location: 'Spain',
+//       price: '\$280',
+//       rating: '4.8',
+//       imageUrl:
+//           'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400',
+//     ),
+//     StaticHotel(
+//       name: 'Grand Palace',
+//       location: 'France',
+//       price: '\$350',
+//       rating: '4.7',
+//       imageUrl:
+//           'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400',
+//     ),
+//     StaticHotel(
+//       name: 'Ocean View Resort',
+//       location: 'Maldives',
+//       price: '\$520',
+//       rating: '4.9',
+//       imageUrl:
+//           'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400',
+//     ),
+//   ];
+
+//   // Static hot deals data
+//   final List<StaticDeal> _hotDeals = [
+//     StaticDeal(
+//       name: 'Bali Motel Vung Tau',
+//       location: 'Indonesia',
+//       price: '\$580',
+//       rating: '4.9',
+//       discount: '5% OFF',
+//       imageUrl:
+//           'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=400',
+//     ),
+//     StaticDeal(
+//       name: 'Tropical Paradise',
+//       location: 'Thailand',
+//       price: '\$420',
+//       rating: '4.8',
+//       discount: '10% OFF',
+//       imageUrl:
+//           'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400',
+//     ),
+//     StaticDeal(
+//       name: 'Beach Resort',
+//       location: 'Philippines',
+//       price: '\$350',
+//       rating: '4.7',
+//       discount: '15% OFF',
+//       imageUrl:
+//           'https://images.unsplash.com/photo-1445019980597-93fa8acb246c?w=400',
+//     ),
+//   ];
+
+//   @override
+//   void initState() {
+//     super.initState();
+//     WidgetsBinding.instance.addPostFrameCallback((_) {
+//       context.read<HomeProvider>().initialize();
+//     });
+
+//     _searchFocusNode.addListener(() {
+//       setState(() {
+//         _showSuggestions =
+//             _searchFocusNode.hasFocus && _searchController.text.isNotEmpty;
+//       });
+//     });
+//   }
+
+//   @override
+//   void dispose() {
+//     _searchController.dispose();
+//     _searchFocusNode.dispose();
+//     super.dispose();
+//   }
+
+//   void _handleSearchChange(String value) {
+//     final homeProvider = context.read<HomeProvider>();
+
+//     setState(() {
+//       _showSuggestions = value.isNotEmpty;
+//     });
+
+//     if (value.isNotEmpty && value.length >= 3) {
+//       homeProvider.performAutoCompleteSearch(value);
+//     } else if (value.isEmpty) {
+//       homeProvider.resetToDefault();
+//     }
+//   }
+
+//   void _handleClearSearch() {
+//     _searchController.clear();
+//     setState(() {
+//       _showSuggestions = false;
+//     });
+//     context.read<HomeProvider>().resetToDefault();
+//     _searchFocusNode.unfocus();
+//   }
+
+//   void _handleSearchTypeChange(String type) {
+//     final homeProvider = context.read<HomeProvider>();
+//     homeProvider.setSearchType(type);
+
+//     if (_searchController.text.isNotEmpty) {
+//       homeProvider.performAutoCompleteSearch(_searchController.text);
+//     } else {
+//       homeProvider.initialize();
+//     }
+//   }
+
+//   void _handleSuggestionTap(SearchResult result) {
+//     _searchController.text = result.name;
+//     setState(() {
+//       _showSuggestions = false;
+//     });
+//     _searchFocusNode.unfocus();
+
+//     if (result.type.toLowerCase() == 'bypropertyname' ||
+//         result.type.toLowerCase() == 'hotel') {
+//       _navigateToHotelDetails(result);
+//     } else {
+//       _showSearchFilterSheet(result);
+//     }
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     final authProvider = Provider.of<AuthProvider>(context);
+
+//     return Scaffold(
+//       backgroundColor: Colors.grey[50],
+//       appBar: _buildAppBar(authProvider),
+//       body: GestureDetector(
+//         onTap: () {
+//           setState(() {
+//             _showSuggestions = false;
+//           });
+//           _searchFocusNode.unfocus();
+//         },
+//         child: Stack(
+//           children: [
+//             Column(
+//               children: [
+//                 _buildSearchSection(),
+//                 Expanded(child: _buildMainContent()),
+//               ],
+//             ),
+//             if (_showSuggestions && _searchController.text.length >= 3)
+//               _buildSearchSuggestionsOverlay(),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+
+//   PreferredSizeWidget _buildAppBar(AuthProvider authProvider) {
+//     return AppBar(
+//       elevation: 0,
+//       backgroundColor: Colors.white,
+//       title: Text(
+//         'Discover Hotels',
+//         style: GoogleFonts.poppins(
+//           color: Colors.black87,
+//           fontWeight: FontWeight.w600,
+//           fontSize: 20,
+//         ),
+//       ),
+//       actions: [
+//         IconButton(
+//           icon: CircleAvatar(
+//             radius: 18,
+//             backgroundImage: widget.user.photoURL != null
+//                 ? NetworkImage(widget.user.photoURL!)
+//                 : null,
+//             child: widget.user.photoURL == null
+//                 ? const Icon(Icons.person, size: 20)
+//                 : null,
+//           ),
+//           onPressed: () => _showProfileMenu(authProvider),
+//         ),
+//         const SizedBox(width: 8),
+//       ],
+//     );
+//   }
+
+//   Widget _buildSearchSection() {
+//     return Consumer<HomeProvider>(
+//       builder: (context, homeProvider, _) {
+//         return Container(
+//           color: Colors.white,
+//           padding: const EdgeInsets.all(16),
+//           child: Column(children: [_buildSearchBarWithFilters(homeProvider)]),
+//         );
+//       },
+//     );
+//   }
+
+//   Widget _buildSearchBarWithFilters(HomeProvider homeProvider) {
+//     final isSearching = _searchController.text.isNotEmpty;
+
+//     return Column(
+//       children: [
+//         TextField(
+//           controller: _searchController,
+//           focusNode: _searchFocusNode,
+//           onChanged: _handleSearchChange,
+//           onTap: () {
+//             if (_searchController.text.isNotEmpty) {
+//               setState(() {
+//                 _showSuggestions = true;
+//               });
+//             }
+//           },
+//           decoration: InputDecoration(
+//             hintText: 'Search hotels, cities, states...',
+//             hintStyle: GoogleFonts.poppins(
+//               color: Colors.grey[400],
+//               fontSize: 14,
+//             ),
+//             prefixIcon: const Icon(Icons.search, color: Colors.grey),
+//             suffixIcon: _searchController.text.isNotEmpty
+//                 ? IconButton(
+//                     icon: const Icon(Icons.clear, color: Colors.grey),
+//                     onPressed: _handleClearSearch,
+//                   )
+//                 : null,
+//             filled: true,
+//             fillColor: Colors.grey[100],
+//             border: OutlineInputBorder(
+//               borderRadius: BorderRadius.circular(12),
+//               borderSide: BorderSide.none,
+//             ),
+//             contentPadding: const EdgeInsets.symmetric(
+//               horizontal: 16,
+//               vertical: 12,
+//             ),
+//           ),
+//         ),
+//         if (isSearching) ...[
+//           const SizedBox(height: 12),
+//           _buildInlineSearchTypeFilter(homeProvider),
+//         ],
+//       ],
+//     );
+//   }
+
+//   Widget _buildInlineSearchTypeFilter(HomeProvider homeProvider) {
+//     final searchTypes = ['All', 'City', 'State', 'Country', 'Property'];
+
+//     return SingleChildScrollView(
+//       scrollDirection: Axis.horizontal,
+//       child: Row(
+//         children: searchTypes
+//             .map(
+//               (type) => Padding(
+//                 padding: const EdgeInsets.only(right: 8),
+//                 child: FilterChip(
+//                   label: Text(type),
+//                   selected: homeProvider.selectedSearchType == type,
+//                   onSelected: (selected) => _handleSearchTypeChange(type),
+//                   selectedColor: Colors.blue,
+//                   backgroundColor: Colors.grey[200],
+//                   labelStyle: TextStyle(
+//                     color: homeProvider.selectedSearchType == type
+//                         ? Colors.white
+//                         : Colors.black87,
+//                     fontSize: 12,
+//                     fontWeight: homeProvider.selectedSearchType == type
+//                         ? FontWeight.w600
+//                         : FontWeight.normal,
+//                   ),
+//                   padding: const EdgeInsets.symmetric(
+//                     horizontal: 12,
+//                     vertical: 8,
+//                   ),
+//                 ),
+//               ),
+//             )
+//             .toList(),
+//       ),
+//     );
+//   }
+
+//   Widget _buildSearchSuggestionsOverlay() {
+//     return Positioned(
+//       top: 80,
+//       left: 0,
+//       right: 0,
+//       child: Consumer<HomeProvider>(
+//         builder: (context, homeProvider, _) {
+//           return Container(
+//             margin: const EdgeInsets.symmetric(horizontal: 16),
+//             decoration: BoxDecoration(
+//               color: Colors.white,
+//               borderRadius: BorderRadius.circular(12),
+//               boxShadow: [
+//                 BoxShadow(
+//                   color: Colors.black.withOpacity(0.1),
+//                   blurRadius: 10,
+//                   offset: const Offset(0, 4),
+//                 ),
+//               ],
+//             ),
+//             constraints: const BoxConstraints(maxHeight: 300),
+//             child: _buildSearchSuggestions(homeProvider),
+//           );
+//         },
+//       ),
+//     );
+//   }
+
+//   Widget _buildSearchSuggestions(HomeProvider homeProvider) {
+//     if (homeProvider.isSearching) {
+//       return Container(
+//         padding: const EdgeInsets.all(16),
+//         child: const Center(child: CircularProgressIndicator()),
+//       );
+//     }
+
+//     if (homeProvider.searchResults.isEmpty) {
+//       return Container(
+//         padding: const EdgeInsets.all(16),
+//         child: Text(
+//           'No suggestions found',
+//           style: GoogleFonts.poppins(color: Colors.grey[600], fontSize: 14),
+//         ),
+//       );
+//     }
+
+//     return ListView.separated(
+//       shrinkWrap: true,
+//       padding: const EdgeInsets.symmetric(vertical: 8),
+//       itemCount: homeProvider.searchResults.length,
+//       separatorBuilder: (context, index) =>
+//           Divider(height: 1, color: Colors.grey[200]),
+//       itemBuilder: (context, index) {
+//         final result = homeProvider.searchResults[index];
+//         return _buildSuggestionItem(result);
+//       },
+//     );
+//   }
+
+//   Widget _buildSuggestionItem(SearchResult result) {
+//     return InkWell(
+//       onTap: () => _handleSuggestionTap(result),
+//       child: Padding(
+//         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+//         child: Row(
+//           children: [
+//             Container(
+//               width: 40,
+//               height: 40,
+//               decoration: BoxDecoration(
+//                 color: Colors.blue[50],
+//                 borderRadius: BorderRadius.circular(8),
+//               ),
+//               child: Icon(
+//                 _getIconForType(result.type),
+//                 color: Colors.blue[700],
+//                 size: 20,
+//               ),
+//             ),
+//             const SizedBox(width: 12),
+//             Expanded(
+//               child: Column(
+//                 crossAxisAlignment: CrossAxisAlignment.start,
+//                 children: [
+//                   Text(
+//                     result.name,
+//                     style: GoogleFonts.poppins(
+//                       fontSize: 14,
+//                       fontWeight: FontWeight.w500,
+//                     ),
+//                     maxLines: 1,
+//                     overflow: TextOverflow.ellipsis,
+//                   ),
+//                   if (result.displayLocation.isNotEmpty) ...[
+//                     const SizedBox(height: 2),
+//                     Text(
+//                       result.displayLocation,
+//                       style: GoogleFonts.poppins(
+//                         fontSize: 12,
+//                         color: Colors.grey[600],
+//                       ),
+//                       maxLines: 1,
+//                       overflow: TextOverflow.ellipsis,
+//                     ),
+//                   ],
+//                 ],
+//               ),
+//             ),
+//             Container(
+//               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+//               decoration: BoxDecoration(
+//                 color: Colors.blue[50],
+//                 borderRadius: BorderRadius.circular(4),
+//               ),
+//               child: Text(
+//                 _getDisplayType(result.type),
+//                 style: GoogleFonts.poppins(
+//                   fontSize: 9,
+//                   fontWeight: FontWeight.w600,
+//                   color: Colors.blue[700],
+//                 ),
+//               ),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+
+//   String _getDisplayType(String type) {
+//     final typeMap = {
+//       'bypropertyname': 'HOTEL',
+//       'bycity': 'CITY',
+//       'bystate': 'STATE',
+//       'bycountry': 'COUNTRY',
+//       'bystreet': 'STREET',
+//     };
+//     return typeMap[type.toLowerCase()] ?? type.toUpperCase();
+//   }
+
+//   Widget _buildMainContent() {
+//     return SingleChildScrollView(
+//       child: Column(
+//         children: [
+//           const SizedBox(height: 16),
+//           _buildPopularHotelsSection(),
+//           const SizedBox(height: 24),
+//           _buildHotDealsSection(),
+//           const SizedBox(height: 24),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _buildPopularHotelsSection() {
+//     return Column(
+//       children: [
+//         Padding(
+//           padding: const EdgeInsets.symmetric(horizontal: 16),
+//           child: Row(
+//             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//             children: [
+//               Text(
+//                 'Popular Hotels',
+//                 style: GoogleFonts.poppins(
+//                   fontSize: 22,
+//                   fontWeight: FontWeight.bold,
+//                   color: Colors.black87,
+//                 ),
+//               ),
+//               TextButton(
+//                 onPressed: () {
+//                   // Navigate to see all popular hotels
+//                 },
+//                 child: Text(
+//                   'See all',
+//                   style: GoogleFonts.poppins(
+//                     fontSize: 14,
+//                     color: Colors.orange[400],
+//                     fontWeight: FontWeight.w500,
+//                   ),
+//                 ),
+//               ),
+//             ],
+//           ),
+//         ),
+//         const SizedBox(height: 12),
+//         SizedBox(
+//           height: 220,
+//           child: ListView.builder(
+//             scrollDirection: Axis.horizontal,
+//             padding: const EdgeInsets.symmetric(horizontal: 16),
+//             itemCount: _popularHotels.length,
+//             itemBuilder: (context, index) {
+//               return _buildPopularHotelCard(_popularHotels[index]);
+//             },
+//           ),
+//         ),
+//       ],
+//     );
+//   }
+
+//   Widget _buildPopularHotelCard(StaticHotel hotel) {
+//     return Container(
+//       width: 180,
+//       margin: const EdgeInsets.only(right: 16),
+//       child: GestureDetector(
+//         onTap: () {
+//           // Handle hotel tap
+//           ScaffoldMessenger.of(
+//             context,
+//           ).showSnackBar(SnackBar(content: Text('Selected: ${hotel.name}')));
+//         },
+//         child: Stack(
+//           children: [
+//             Container(
+//               decoration: BoxDecoration(
+//                 borderRadius: BorderRadius.circular(16),
+//                 image: DecorationImage(
+//                   image: NetworkImage(hotel.imageUrl),
+//                   fit: BoxFit.cover,
+//                 ),
+//                 boxShadow: [
+//                   BoxShadow(
+//                     color: Colors.black.withOpacity(0.2),
+//                     blurRadius: 8,
+//                     offset: const Offset(0, 4),
+//                   ),
+//                 ],
+//               ),
+//             ),
+//             Container(
+//               decoration: BoxDecoration(
+//                 borderRadius: BorderRadius.circular(16),
+//                 gradient: LinearGradient(
+//                   begin: Alignment.topCenter,
+//                   end: Alignment.bottomCenter,
+//                   colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+//                 ),
+//               ),
+//             ),
+//             Positioned(
+//               bottom: 12,
+//               left: 12,
+//               right: 12,
+//               child: Column(
+//                 crossAxisAlignment: CrossAxisAlignment.start,
+//                 children: [
+//                   Text(
+//                     hotel.name,
+//                     style: GoogleFonts.poppins(
+//                       fontSize: 16,
+//                       fontWeight: FontWeight.w600,
+//                       color: Colors.white,
+//                     ),
+//                     maxLines: 1,
+//                     overflow: TextOverflow.ellipsis,
+//                   ),
+//                   const SizedBox(height: 4),
+//                   Row(
+//                     children: [
+//                       Icon(
+//                         Icons.location_on,
+//                         size: 14,
+//                         color: Colors.white.withOpacity(0.9),
+//                       ),
+//                       const SizedBox(width: 4),
+//                       Expanded(
+//                         child: Text(
+//                           hotel.location,
+//                           style: GoogleFonts.poppins(
+//                             fontSize: 12,
+//                             color: Colors.white.withOpacity(0.9),
+//                           ),
+//                           maxLines: 1,
+//                           overflow: TextOverflow.ellipsis,
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+//                   const SizedBox(height: 8),
+//                   Row(
+//                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//                     children: [
+//                       Text(
+//                         '${hotel.price}/night',
+//                         style: GoogleFonts.poppins(
+//                           fontSize: 14,
+//                           fontWeight: FontWeight.bold,
+//                           color: Colors.white,
+//                         ),
+//                       ),
+//                       Container(
+//                         padding: const EdgeInsets.symmetric(
+//                           horizontal: 8,
+//                           vertical: 4,
+//                         ),
+//                         decoration: BoxDecoration(
+//                           color: Colors.orange[400],
+//                           borderRadius: BorderRadius.circular(6),
+//                         ),
+//                         child: Row(
+//                           children: [
+//                             const Icon(
+//                               Icons.star,
+//                               size: 14,
+//                               color: Colors.white,
+//                             ),
+//                             const SizedBox(width: 4),
+//                             Text(
+//                               hotel.rating,
+//                               style: GoogleFonts.poppins(
+//                                 fontSize: 12,
+//                                 fontWeight: FontWeight.w600,
+//                                 color: Colors.white,
+//                               ),
+//                             ),
+//                           ],
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+//                 ],
+//               ),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+
+//   Widget _buildHotDealsSection() {
+//     return Column(
+//       children: [
+//         Padding(
+//           padding: const EdgeInsets.symmetric(horizontal: 16),
+//           child: Row(
+//             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//             children: [
+//               Text(
+//                 'Hot Deals',
+//                 style: GoogleFonts.poppins(
+//                   fontSize: 22,
+//                   fontWeight: FontWeight.bold,
+//                   color: Colors.black87,
+//                 ),
+//               ),
+//               TextButton(
+//                 onPressed: () {
+//                   // Navigate to see all hot deals
+//                 },
+//                 child: Text(
+//                   'See all',
+//                   style: GoogleFonts.poppins(
+//                     fontSize: 14,
+//                     color: Colors.orange[400],
+//                     fontWeight: FontWeight.w500,
+//                   ),
+//                 ),
+//               ),
+//             ],
+//           ),
+//         ),
+//         const SizedBox(height: 12),
+//         SizedBox(
+//           height: 200,
+//           child: ListView.builder(
+//             scrollDirection: Axis.horizontal,
+//             padding: const EdgeInsets.symmetric(horizontal: 16),
+//             itemCount: _hotDeals.length,
+//             itemBuilder: (context, index) {
+//               return _buildHotDealCard(_hotDeals[index]);
+//             },
+//           ),
+//         ),
+//       ],
+//     );
+//   }
+
+//   Widget _buildHotDealCard(StaticDeal deal) {
+//     return Container(
+//       width: 280,
+//       margin: const EdgeInsets.only(right: 16),
+//       child: GestureDetector(
+//         onTap: () {
+//           // Handle deal tap
+//           ScaffoldMessenger.of(
+//             context,
+//           ).showSnackBar(SnackBar(content: Text('Selected: ${deal.name}')));
+//         },
+//         child: Stack(
+//           children: [
+//             Container(
+//               decoration: BoxDecoration(
+//                 borderRadius: BorderRadius.circular(16),
+//                 image: DecorationImage(
+//                   image: NetworkImage(deal.imageUrl),
+//                   fit: BoxFit.cover,
+//                 ),
+//                 boxShadow: [
+//                   BoxShadow(
+//                     color: Colors.black.withOpacity(0.2),
+//                     blurRadius: 8,
+//                     offset: const Offset(0, 4),
+//                   ),
+//                 ],
+//               ),
+//             ),
+//             Container(
+//               decoration: BoxDecoration(
+//                 borderRadius: BorderRadius.circular(16),
+//                 gradient: LinearGradient(
+//                   begin: Alignment.topCenter,
+//                   end: Alignment.bottomCenter,
+//                   colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+//                 ),
+//               ),
+//             ),
+//             Positioned(
+//               top: 12,
+//               left: 12,
+//               child: Container(
+//                 padding: const EdgeInsets.symmetric(
+//                   horizontal: 12,
+//                   vertical: 6,
+//                 ),
+//                 decoration: BoxDecoration(
+//                   color: Colors.orange[400],
+//                   borderRadius: BorderRadius.circular(20),
+//                 ),
+//                 child: Text(
+//                   deal.discount,
+//                   style: GoogleFonts.poppins(
+//                     fontSize: 12,
+//                     fontWeight: FontWeight.bold,
+//                     color: Colors.white,
+//                   ),
+//                 ),
+//               ),
+//             ),
+//             Positioned(
+//               bottom: 12,
+//               left: 12,
+//               right: 12,
+//               child: Column(
+//                 crossAxisAlignment: CrossAxisAlignment.start,
+//                 children: [
+//                   Text(
+//                     deal.name,
+//                     style: GoogleFonts.poppins(
+//                       fontSize: 16,
+//                       fontWeight: FontWeight.w600,
+//                       color: Colors.white,
+//                     ),
+//                     maxLines: 1,
+//                     overflow: TextOverflow.ellipsis,
+//                   ),
+//                   const SizedBox(height: 4),
+//                   Row(
+//                     children: [
+//                       Icon(
+//                         Icons.location_on,
+//                         size: 14,
+//                         color: Colors.white.withOpacity(0.9),
+//                       ),
+//                       const SizedBox(width: 4),
+//                       Expanded(
+//                         child: Text(
+//                           deal.location,
+//                           style: GoogleFonts.poppins(
+//                             fontSize: 12,
+//                             color: Colors.white.withOpacity(0.9),
+//                           ),
+//                           maxLines: 1,
+//                           overflow: TextOverflow.ellipsis,
+//                         ),
+//                       ),
+//                       Container(
+//                         padding: const EdgeInsets.symmetric(
+//                           horizontal: 8,
+//                           vertical: 4,
+//                         ),
+//                         decoration: BoxDecoration(
+//                           color: Colors.orange[400],
+//                           borderRadius: BorderRadius.circular(6),
+//                         ),
+//                         child: Row(
+//                           children: [
+//                             const Icon(
+//                               Icons.star,
+//                               size: 14,
+//                               color: Colors.white,
+//                             ),
+//                             const SizedBox(width: 4),
+//                             Text(
+//                               deal.rating,
+//                               style: GoogleFonts.poppins(
+//                                 fontSize: 12,
+//                                 fontWeight: FontWeight.w600,
+//                                 color: Colors.white,
+//                               ),
+//                             ),
+//                           ],
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+//                   const SizedBox(height: 8),
+//                   Text(
+//                     '${deal.price}/night',
+//                     style: GoogleFonts.poppins(
+//                       fontSize: 16,
+//                       fontWeight: FontWeight.bold,
+//                       color: Colors.white,
+//                     ),
+//                   ),
+//                 ],
+//               ),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+
+//   void _showSearchFilterSheet(SearchResult result) {
+//     final homeProvider = context.read<HomeProvider>();
+
+//     showModalBottomSheet(
+//       context: context,
+//       isScrollControlled: true,
+//       backgroundColor: Colors.transparent,
+//       builder: (context) => DraggableScrollableSheet(
+//         initialChildSize: 0.9,
+//         minChildSize: 0.5,
+//         maxChildSize: 0.95,
+//         builder: (_, controller) => SearchFilterBottomSheet(
+//           initialCriteria: homeProvider.searchCriteria,
+//           onSearch: (criteria) async {
+//             homeProvider.setSearchCriteria(criteria);
+//             Navigator.pop(context);
+//             await Future.delayed(const Duration(milliseconds: 100));
+//             if (mounted) {
+//               _navigateToHotelResults(result, criteria);
+//             }
+//           },
+//         ),
+//       ),
+//     );
+//   }
+
+//   Future<void> _navigateToHotelDetails(SearchResult result) async {
+//     try {
+//       final criteria = SearchCriteria(
+//         checkInDate: DateTime.now().add(const Duration(days: 1)),
+//         checkOutDate: DateTime.now().add(const Duration(days: 2)),
+//         rooms: 1,
+//         adults: 2,
+//         children: 0,
+//         accommodations: ['all'],
+//         excludedSearchTypes: [],
+//         minPrice: 0,
+//         maxPrice: 30000,
+//       );
+
+//       log('Navigating to hotel details for: ${result.name}');
+//       await _navigateToHotelResults(result, criteria);
+//     } catch (e) {
+//       log('❌ Error navigating to hotel details: $e');
+//       if (mounted) {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           SnackBar(
+//             content: Text('Error: ${e.toString()}'),
+//             backgroundColor: Colors.red,
+//             duration: const Duration(seconds: 3),
+//           ),
+//         );
+//       }
+//     }
+//   }
+
+//   Future<void> _navigateToHotelResults(
+//     SearchResult result,
+//     SearchCriteria criteria,
+//   ) async {
+//     try {
+//       final queryList = result.getSearchQueryList();
+
+//       if (queryList.isEmpty) {
+//         log('⚠️ Warning: No query list found, using result ID as fallback');
+//         log('Result ID: ${result.id}');
+//         log('Result Type: ${result.type}');
+//       } else {
+//         log('✅ Query List: ${queryList.join(", ")}');
+//       }
+
+//       log('Search Type: ${result.getSearchTypeForAPI()}');
+//       log('Check-in: ${criteria.checkIn}');
+//       log('Check-out: ${criteria.checkOut}');
+//       log('Rooms: ${criteria.rooms}, Adults: ${criteria.adults}');
+
+//       await Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           builder: (context) => HotelResultsScreen(
+//             searchResult: result,
+//             searchCriteria: criteria,
+//           ),
+//         ),
+//       );
+//     } catch (e) {
+//       log('❌ Error navigating to hotel results: $e');
+
+//       if (mounted) {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           SnackBar(
+//             content: Text('Error: ${e.toString()}'),
+//             backgroundColor: Colors.red,
+//             duration: const Duration(seconds: 3),
+//           ),
+//         );
+//       }
+//     }
+//   }
+
+//   IconData _getIconForType(String type) {
+//     final typeMap = {
+//       'bypropertyname': Icons.hotel,
+//       'bycity': Icons.location_city,
+//       'bystate': Icons.map,
+//       'bycountry': Icons.public,
+//       'bystreet': Icons.place,
+//     };
+//     return typeMap[type.toLowerCase()] ?? Icons.place;
+//   }
+
+//   void _showProfileMenu(AuthProvider authProvider) {
+//     showModalBottomSheet(
+//       context: context,
+//       shape: const RoundedRectangleBorder(
+//         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+//       ),
+//       builder: (context) => _buildProfileMenu(authProvider),
+//     );
+//   }
+
+//   Widget _buildProfileMenu(AuthProvider authProvider) {
+//     return Container(
+//       padding: const EdgeInsets.all(20),
+//       child: Column(
+//         mainAxisSize: MainAxisSize.min,
+//         children: [
+//           CircleAvatar(
+//             radius: 40,
+//             backgroundImage: widget.user.photoURL != null
+//                 ? NetworkImage(widget.user.photoURL!)
+//                 : null,
+//           ),
+//           const SizedBox(height: 12),
+//           Text(
+//             widget.user.displayName ?? '',
+//             style: GoogleFonts.poppins(
+//               fontSize: 18,
+//               fontWeight: FontWeight.w600,
+//             ),
+//           ),
+//           Text(
+//             widget.user.email ?? '',
+//             style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+//           ),
+//           const SizedBox(height: 20),
+//           if (authProvider.visitorToken != null) _buildVerifiedBadge(),
+//           const SizedBox(height: 20),
+//           _buildSignOutButton(authProvider),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _buildVerifiedBadge() {
+//     return Container(
+//       padding: const EdgeInsets.all(12),
+//       decoration: BoxDecoration(
+//         color: Colors.green[50],
+//         borderRadius: BorderRadius.circular(8),
+//         border: Border.all(color: Colors.green[200]!),
+//       ),
+//       child: Row(
+//         children: [
+//           Icon(Icons.verified, color: Colors.green[700], size: 20),
+//           const SizedBox(width: 8),
+//           Expanded(
+//             child: Text(
+//               'Device Verified',
+//               style: GoogleFonts.poppins(
+//                 fontSize: 14,
+//                 fontWeight: FontWeight.w500,
+//               ),
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _buildSignOutButton(AuthProvider authProvider) {
+//     return ElevatedButton.icon(
+//       onPressed: () => _handleSignOut(authProvider),
+//       icon: const Icon(Icons.logout),
+//       label: const Text('Sign Out'),
+//       style: ElevatedButton.styleFrom(
+//         backgroundColor: Colors.red,
+//         foregroundColor: Colors.white,
+//         minimumSize: const Size(double.infinity, 48),
+//         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+//       ),
+//     );
+//   }
+
+//   Future<void> _handleSignOut(AuthProvider authProvider) async {
+//     Navigator.pop(context);
+//     await authProvider.signOut();
+//     if (mounted) {
+//       Navigator.pushReplacement(
+//         context,
+//         MaterialPageRoute(builder: (_) => const SignInScreen()),
+//       );
+//     }
+//   }
+// }
+
+
+// /*suggimport 'dart:developer';
+// import 'package:flutter/material.dart';
+// import 'package:google_fonts/google_fonts.dart';
+// import 'package:hotel_app/business_logic/auth-provider.dart';
+// import 'package:hotel_app/business_logic/home_provider.dart';
+// import 'package:hotel_app/models/search_result.dart';
+// import 'package:hotel_app/screens/bottom_sheet_widget/search_filter_bottomsheet.dart';
+// import 'package:hotel_app/screens/hotel_result_screen.dart';
+// import 'package:provider/provider.dart';
+// import 'sign_in_screen.dart';
+
+// class HomeScreen extends StatefulWidget {
+//   final dynamic user;
+//   const HomeScreen({super.key, required this.user});
+
+//   @override
+//   State<HomeScreen> createState() => _HomeScreenState();
+// }
+
+// class _HomeScreenState extends State<HomeScreen> {
+//   final TextEditingController _searchController = TextEditingController();
+//   final FocusNode _searchFocusNode = FocusNode();
+//   bool _showSuggestions = false;
+
+//   @override
+//   void initState() {
+//     super.initState();
+//     WidgetsBinding.instance.addPostFrameCallback((_) {
+//       context.read<HomeProvider>().initialize();
+//     });
+
+//     // Listen to focus changes
+//     _searchFocusNode.addListener(() {
+//       setState(() {
+//         _showSuggestions =
+//             _searchFocusNode.hasFocus && _searchController.text.isNotEmpty;
+//       });
+//     });
+//   }
+
+//   @override
+//   void dispose() {
+//     _searchController.dispose();
+//     _searchFocusNode.dispose();
+//     super.dispose();
+//   }
+
+//   void _handleSearchChange(String value) {
+//     final homeProvider = context.read<HomeProvider>();
+
+//     setState(() {
+//       _showSuggestions = value.isNotEmpty;
+//     });
+
+//     if (value.isNotEmpty && value.length >= 3) {
+//       homeProvider.performAutoCompleteSearch(value);
+//     } else if (value.isEmpty) {
+//       homeProvider.resetToDefault();
+//     }
+//   }
+
+//   void _handleClearSearch() {
+//     _searchController.clear();
+//     setState(() {
+//       _showSuggestions = false;
+//     });
+//     context.read<HomeProvider>().resetToDefault();
+//     _searchFocusNode.unfocus();
+//   }
+
+//   void _handleSearchTypeChange(String type) {
+//     final homeProvider = context.read<HomeProvider>();
+//     homeProvider.setSearchType(type);
+
+//     if (_searchController.text.isNotEmpty) {
+//       homeProvider.performAutoCompleteSearch(_searchController.text);
+//     } else {
+//       homeProvider.initialize();
+//     }
+//   }
+
+//   // Handle suggestion click
+//   void _handleSuggestionTap(SearchResult result) {
+//     _searchController.text = result.name;
+//     setState(() {
+//       _showSuggestions = false;
+//     });
+//     _searchFocusNode.unfocus();
+
+//     // Show filter sheet when suggestion is selected
+//     _showSearchFilterSheet(result);
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     final authProvider = Provider.of<AuthProvider>(context);
+
+//     return Scaffold(
+//       backgroundColor: Colors.grey[100],
+//       appBar: _buildAppBar(authProvider),
+//       body: GestureDetector(
+//         onTap: () {
+//           // Hide suggestions when tapping outside
+//           setState(() {
+//             _showSuggestions = false;
+//           });
+//           _searchFocusNode.unfocus();
+//         },
+//         child: Column(
+//           children: [
+//             _buildSearchSection(),
+//             Expanded(child: _buildMainContent()),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+
+//   PreferredSizeWidget _buildAppBar(AuthProvider authProvider) {
+//     return AppBar(
+//       elevation: 0,
+//       backgroundColor: Colors.white,
+//       title: Text(
+//         'Discover Hotels',
+//         style: GoogleFonts.poppins(
+//           color: Colors.black87,
+//           fontWeight: FontWeight.w600,
+//         ),
+//       ),
+//       actions: [
+//         IconButton(
+//           icon: CircleAvatar(
+//             radius: 16,
+//             backgroundImage: widget.user.photoURL != null
+//                 ? NetworkImage(widget.user.photoURL!)
+//                 : null,
+//             child: widget.user.photoURL == null
+//                 ? const Icon(Icons.person, size: 20)
+//                 : null,
+//           ),
+//           onPressed: () => _showProfileMenu(authProvider),
+//         ),
+//         const SizedBox(width: 8),
+//       ],
+//     );
+//   }
+
+//   Widget _buildSearchSection() {
+//     return Consumer<HomeProvider>(
+//       builder: (context, homeProvider, _) {
+//         return Container(
+//           color: Colors.white,
+//           child: Column(
+//             children: [
+//               Padding(
+//                 padding: const EdgeInsets.all(16),
+//                 child: Column(
+//                   children: [
+//                     _buildSearchBar(),
+//                     const SizedBox(height: 12),
+//                     _buildSearchTypeFilter(homeProvider),
+//                   ],
+//                 ),
+//               ),
+//               // Search suggestions dropdown
+//               if (_showSuggestions && _searchController.text.length >= 3)
+//                 _buildSearchSuggestions(homeProvider),
+//             ],
+//           ),
+//         );
+//       },
+//     );
+//   }
+
+//   Widget _buildSearchBar() {
+//     return TextField(
+//       controller: _searchController,
+//       focusNode: _searchFocusNode,
+//       onChanged: _handleSearchChange,
+//       onTap: () {
+//         if (_searchController.text.isNotEmpty) {
+//           setState(() {
+//             _showSuggestions = true;
+//           });
+//         }
+//       },
+//       decoration: InputDecoration(
+//         hintText: 'Search hotels, cities, states...',
+//         hintStyle: GoogleFonts.poppins(color: Colors.grey[400], fontSize: 14),
+//         prefixIcon: const Icon(Icons.search, color: Colors.grey),
+//         suffixIcon: _searchController.text.isNotEmpty
+//             ? IconButton(
+//                 icon: const Icon(Icons.clear, color: Colors.grey),
+//                 onPressed: _handleClearSearch,
+//               )
+//             : null,
+//         filled: true,
+//         fillColor: Colors.grey[100],
+//         border: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(12),
+//           borderSide: BorderSide.none,
+//         ),
+//         contentPadding: const EdgeInsets.symmetric(
+//           horizontal: 16,
+//           vertical: 12,
+//         ),
+//       ),
+//     );
+//   }
+
+//   Widget _buildSearchSuggestions(HomeProvider homeProvider) {
+//     if (homeProvider.isSearching) {
+//       return Container(
+//         padding: const EdgeInsets.all(16),
+//         child: const Center(child: CircularProgressIndicator()),
+//       );
+//     }
+
+//     if (homeProvider.searchResults.isEmpty) {
+//       return Container(
+//         padding: const EdgeInsets.all(16),
+//         child: Text(
+//           'No suggestions found',
+//           style: GoogleFonts.poppins(color: Colors.grey[600], fontSize: 14),
+//         ),
+//       );
+//     }
+
+//     return Container(
+//       constraints: const BoxConstraints(maxHeight: 300),
+//       decoration: BoxDecoration(
+//         color: Colors.white,
+//         border: Border(top: BorderSide(color: Colors.grey[200]!)),
+//       ),
+//       child: ListView.separated(
+//         shrinkWrap: true,
+//         padding: const EdgeInsets.symmetric(vertical: 8),
+//         itemCount: homeProvider.searchResults.length,
+//         separatorBuilder: (context, index) =>
+//             Divider(height: 1, color: Colors.grey[200]),
+//         itemBuilder: (context, index) {
+//           final result = homeProvider.searchResults[index];
+//           return _buildSuggestionItem(result);
+//         },
+//       ),
+//     );
+//   }
+
+//   Widget _buildSuggestionItem(SearchResult result) {
+//     return InkWell(
+//       onTap: () => _handleSuggestionTap(result),
+//       child: Padding(
+//         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+//         child: Row(
+//           children: [
+//             Container(
+//               width: 40,
+//               height: 40,
+//               decoration: BoxDecoration(
+//                 color: Colors.blue[50],
+//                 borderRadius: BorderRadius.circular(8),
+//               ),
+//               child: Icon(
+//                 _getIconForType(result.type),
+//                 color: Colors.blue[700],
+//                 size: 20,
+//               ),
+//             ),
+//             const SizedBox(width: 12),
+//             Expanded(
+//               child: Column(
+//                 crossAxisAlignment: CrossAxisAlignment.start,
+//                 children: [
+//                   Text(
+//                     result.name,
+//                     style: GoogleFonts.poppins(
+//                       fontSize: 14,
+//                       fontWeight: FontWeight.w500,
+//                     ),
+//                     maxLines: 1,
+//                     overflow: TextOverflow.ellipsis,
+//                   ),
+//                   if (result.displayLocation.isNotEmpty) ...[
+//                     const SizedBox(height: 2),
+//                     Text(
+//                       result.displayLocation,
+//                       style: GoogleFonts.poppins(
+//                         fontSize: 12,
+//                         color: Colors.grey[600],
+//                       ),
+//                       maxLines: 1,
+//                       overflow: TextOverflow.ellipsis,
+//                     ),
+//                   ],
+//                 ],
+//               ),
+//             ),
+//             Container(
+//               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+//               decoration: BoxDecoration(
+//                 color: Colors.blue[50],
+//                 borderRadius: BorderRadius.circular(4),
+//               ),
+//               child: Text(
+//                 result.type.toUpperCase(),
+//                 style: GoogleFonts.poppins(
+//                   fontSize: 9,
+//                   fontWeight: FontWeight.w600,
+//                   color: Colors.blue[700],
+//                 ),
+//               ),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+
+//   Widget _buildSearchTypeFilter(HomeProvider homeProvider) {
+//     final searchTypes = ['All', 'City', 'State', 'Country', 'Property'];
+
+//     return SingleChildScrollView(
+//       scrollDirection: Axis.horizontal,
+//       child: Row(
+//         children: searchTypes
+//             .map(
+//               (type) => Padding(
+//                 padding: const EdgeInsets.only(right: 8),
+//                 child: FilterChip(
+//                   label: Text(type),
+//                   selected: homeProvider.selectedSearchType == type,
+//                   onSelected: (selected) => _handleSearchTypeChange(type),
+//                   selectedColor: Colors.blue,
+//                   labelStyle: TextStyle(
+//                     color: homeProvider.selectedSearchType == type
+//                         ? Colors.white
+//                         : Colors.black87,
+//                     fontSize: 12,
+//                   ),
+//                 ),
+//               ),
+//             )
+//             .toList(),
+//       ),
+//     );
+//   }
+
+//   Widget _buildMainContent() {
+//     // Only show location results when not searching or showing suggestions
+//     if (_showSuggestions && _searchController.text.length >= 3) {
+//       return const SizedBox.shrink();
+//     }
+
+//     return _buildLocationResultsSection();
+//   }
+
+//   Widget _buildLocationResultsSection() {
+//     return Consumer<HomeProvider>(
+//       builder: (context, homeProvider, _) {
+//         if (homeProvider.isSearching) {
+//           return const Center(child: CircularProgressIndicator());
+//         }
+
+//         if (homeProvider.searchResults.isEmpty && homeProvider.hasSearched) {
+//           return _buildEmptyState();
+//         }
+
+//         if (homeProvider.searchResults.isEmpty) {
+//           return const Center(child: CircularProgressIndicator());
+//         }
+
+//         return _buildLocationResultsList(homeProvider.searchResults);
+//       },
+//     );
+//   }
+
+//   Widget _buildEmptyState() {
+//     return Center(
+//       child: Column(
+//         mainAxisAlignment: MainAxisAlignment.center,
+//         children: [
+//           Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+//           const SizedBox(height: 16),
+//           Text(
+//             'No results found',
+//             style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
+//           ),
+//           const SizedBox(height: 8),
+//           Text(
+//             'Try searching for a different location',
+//             style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[400]),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _buildLocationResultsList(List<SearchResult> results) {
+//     return ListView.builder(
+//       padding: const EdgeInsets.all(16),
+//       itemCount: results.length,
+//       itemBuilder: (context, index) {
+//         return _buildLocationCard(results[index]);
+//       },
+//     );
+//   }
+
+//   Widget _buildLocationCard(SearchResult result) {
+//     return Card(
+//       margin: const EdgeInsets.only(bottom: 16),
+//       elevation: 2,
+//       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+//       child: InkWell(
+//         onTap: () => _showSearchFilterSheet(result),
+//         borderRadius: BorderRadius.circular(12),
+//         child: Padding(
+//           padding: const EdgeInsets.all(16),
+//           child: Row(
+//             children: [
+//               Container(
+//                 width: 60,
+//                 height: 60,
+//                 decoration: BoxDecoration(
+//                   color: Colors.blue[50],
+//                   borderRadius: BorderRadius.circular(8),
+//                 ),
+//                 child: Icon(
+//                   _getIconForType(result.type),
+//                   color: Colors.blue[700],
+//                   size: 32,
+//                 ),
+//               ),
+//               const SizedBox(width: 16),
+//               Expanded(
+//                 child: Column(
+//                   crossAxisAlignment: CrossAxisAlignment.start,
+//                   children: [
+//                     Text(
+//                       result.name,
+//                       style: GoogleFonts.poppins(
+//                         fontSize: 16,
+//                         fontWeight: FontWeight.w600,
+//                       ),
+//                     ),
+//                     if (result.displayLocation.isNotEmpty) ...[
+//                       const SizedBox(height: 4),
+//                       Text(
+//                         result.displayLocation,
+//                         style: GoogleFonts.poppins(
+//                           fontSize: 13,
+//                           color: Colors.grey[600],
+//                         ),
+//                       ),
+//                     ],
+//                     const SizedBox(height: 4),
+//                     Container(
+//                       padding: const EdgeInsets.symmetric(
+//                         horizontal: 8,
+//                         vertical: 2,
+//                       ),
+//                       decoration: BoxDecoration(
+//                         color: Colors.blue[50],
+//                         borderRadius: BorderRadius.circular(4),
+//                       ),
+//                       child: Text(
+//                         result.type.toUpperCase(),
+//                         style: GoogleFonts.poppins(
+//                           fontSize: 10,
+//                           fontWeight: FontWeight.w600,
+//                           color: Colors.blue[700],
+//                         ),
+//                       ),
+//                     ),
+//                   ],
+//                 ),
+//               ),
+//               Icon(Icons.chevron_right, color: Colors.grey[400]),
+//             ],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+
+//   void _showSearchFilterSheet(SearchResult result) {
+//     final homeProvider = context.read<HomeProvider>();
+
+//     showModalBottomSheet(
+//       context: context,
+//       isScrollControlled: true,
+//       backgroundColor: Colors.transparent,
+//       builder: (context) => DraggableScrollableSheet(
+//         initialChildSize: 0.9,
+//         minChildSize: 0.5,
+//         maxChildSize: 0.95,
+//         builder: (_, controller) => SearchFilterBottomSheet(
+//           initialCriteria: homeProvider.searchCriteria,
+//           onSearch: (criteria) async {
+//             homeProvider.setSearchCriteria(criteria);
+//             Navigator.pop(context);
+//             await Future.delayed(const Duration(milliseconds: 100));
+//             if (mounted) {
+//               _navigateToHotelResults(result, criteria);
+//             }
+//           },
+//         ),
+//       ),
+//     );
+//   }
+
+//   Future<void> _navigateToHotelResults(
+//     SearchResult result,
+//     SearchCriteria criteria,
+//   ) async {
+//     try {
+//       final queryList = result.getSearchQueryList();
+
+//       if (queryList.isEmpty) {
+//         log('⚠️ Warning: No query list found, using result ID as fallback');
+//         log('Result ID: ${result.id}');
+//         log('Result Type: ${result.type}');
+//       } else {
+//         log('✅ Query List: ${queryList.join(", ")}');
+//       }
+
+//       log('Search Type: ${result.getSearchTypeForAPI()}');
+//       log('Check-in: ${criteria.checkIn}');
+//       log('Check-out: ${criteria.checkOut}');
+//       log('Rooms: ${criteria.rooms}, Adults: ${criteria.adults}');
+
+//       await Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           builder: (context) => HotelResultsScreen(
+//             searchResult: result,
+//             searchCriteria: criteria,
+//           ),
+//         ),
+//       );
+//     } catch (e) {
+//       log('❌ Error navigating to hotel results: $e');
+
+//       if (mounted) {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           SnackBar(
+//             content: Text('Error: ${e.toString()}'),
+//             backgroundColor: Colors.red,
+//             duration: const Duration(seconds: 3),
+//           ),
+//         );
+//       }
+//     }
+//   }
+
+//   IconData _getIconForType(String type) {
+//     switch (type.toLowerCase()) {
+//       case 'hotel':
+//         return Icons.hotel;
+//       case 'city':
+//         return Icons.location_city;
+//       case 'state':
+//         return Icons.map;
+//       case 'country':
+//         return Icons.public;
+//       default:
+//         return Icons.place;
+//     }
+//   }
+
+//   void _showProfileMenu(AuthProvider authProvider) {
+//     showModalBottomSheet(
+//       context: context,
+//       shape: const RoundedRectangleBorder(
+//         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+//       ),
+//       builder: (context) => _buildProfileMenu(authProvider),
+//     );
+//   }
+
+//   Widget _buildProfileMenu(AuthProvider authProvider) {
+//     return Container(
+//       padding: const EdgeInsets.all(20),
+//       child: Column(
+//         mainAxisSize: MainAxisSize.min,
+//         children: [
+//           CircleAvatar(
+//             radius: 40,
+//             backgroundImage: widget.user.photoURL != null
+//                 ? NetworkImage(widget.user.photoURL!)
+//                 : null,
+//           ),
+//           const SizedBox(height: 12),
+//           Text(
+//             widget.user.displayName ?? '',
+//             style: GoogleFonts.poppins(
+//               fontSize: 18,
+//               fontWeight: FontWeight.w600,
+//             ),
+//           ),
+//           Text(
+//             widget.user.email ?? '',
+//             style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+//           ),
+//           const SizedBox(height: 20),
+//           if (authProvider.visitorToken != null) _buildVerifiedBadge(),
+//           const SizedBox(height: 20),
+//           _buildSignOutButton(authProvider),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _buildVerifiedBadge() {
+//     return Container(
+//       padding: const EdgeInsets.all(12),
+//       decoration: BoxDecoration(
+//         color: Colors.green[50],
+//         borderRadius: BorderRadius.circular(8),
+//         border: Border.all(color: Colors.green[200]!),
+//       ),
+//       child: Row(
+//         children: [
+//           Icon(Icons.verified, color: Colors.green[700], size: 20),
+//           const SizedBox(width: 8),
+//           Expanded(
+//             child: Text(
+//               'Device Verified',
+//               style: GoogleFonts.poppins(
+//                 fontSize: 14,
+//                 fontWeight: FontWeight.w500,
+//               ),
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _buildSignOutButton(AuthProvider authProvider) {
+//     return ElevatedButton.icon(
+//       onPressed: () => _handleSignOut(authProvider),
+//       icon: const Icon(Icons.logout),
+//       label: const Text('Sign Out'),
+//       style: ElevatedButton.styleFrom(
+//         backgroundColor: Colors.red,
+//         foregroundColor: Colors.white,
+//         minimumSize: const Size(double.infinity, 48),
+//         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+//       ),
+//     );
+//   }
+
+//   Future<void> _handleSignOut(AuthProvider authProvider) async {
+//     Navigator.pop(context);
+//     await authProvider.signOut();
+//     if (mounted) {
+//       Navigator.pushReplacement(
+//         context,
+//         MaterialPageRoute(builder: (_) => const SignInScreen()),
+//       );
+//     }
+//   }
+// }
+// */
