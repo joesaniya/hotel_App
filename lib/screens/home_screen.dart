@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hotel_app/business_logic/auth-provider.dart';
+import 'package:hotel_app/business_logic/home_provider.dart';
 import 'package:hotel_app/models/search_result.dart';
-import 'package:hotel_app/services/hotel_search_service.dart';
 import 'package:provider/provider.dart';
 import 'sign_in_screen.dart';
 
@@ -16,16 +16,14 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final HotelSearchService _searchService = HotelSearchService();
-  List<SearchResult> _results = [];
-  bool _isLoading = false;
-  String _selectedSearchType = 'All';
-  bool _hasSearched = false;
 
   @override
   void initState() {
     super.initState();
-    _loadInitialData();
+    // Initialize home provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<HomeProvider>().initialize();
+    });
   }
 
   @override
@@ -34,62 +32,41 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _loadInitialData() async {
-    // Load some default search results (e.g., popular cities)
-    await _performSearch('India', showLoading: true);
-  }
-
-  Future<void> _performSearch(String query, {bool showLoading = false}) async {
-    if (query.isEmpty) {
-      setState(() {
-        _results = [];
-        _hasSearched = false;
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = showLoading;
-      _hasSearched = true;
-    });
-
-    try {
-      final results = _selectedSearchType == 'All'
-          ? await _searchService.searchAll(query)
-          : await _searchService.searchAutoComplete(
-              inputText: query,
-              searchType: _getSearchTypeKey(_selectedSearchType),
-            );
-
-      setState(() {
-        _results = results;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Search failed: $e')));
-      }
+  void _handleSearchChange(String value) {
+    final homeProvider = context.read<HomeProvider>();
+    if (value.isNotEmpty) {
+      homeProvider.performSearch(value);
+    } else {
+      homeProvider.resetToDefault();
     }
   }
 
-  String _getSearchTypeKey(String displayType) {
-    switch (displayType) {
-      case 'City':
-        return 'byCity';
-      case 'State':
-        return 'byState';
-      case 'Country':
-        return 'byCountry';
-      case 'Property':
-        return 'byPropertyName';
-      default:
-        return 'byCity';
+  void _handleClearSearch() {
+    _searchController.clear();
+    context.read<HomeProvider>().resetToDefault();
+  }
+
+  void _handleSearchTypeChange(String type) {
+    final homeProvider = context.read<HomeProvider>();
+    homeProvider.setSearchType(type);
+
+    if (_searchController.text.isNotEmpty) {
+      homeProvider.performSearch(_searchController.text);
+    } else {
+      homeProvider.initialize();
     }
+  }
+
+  void _handleResultTap(SearchResult result) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Selected: ${result.name}')));
+  }
+
+  void _handleViewDetails(SearchResult result) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('View details: ${result.name}')));
   }
 
   @override
@@ -98,163 +75,167 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: Text(
-          'Discover Hotels',
-          style: GoogleFonts.poppins(
-            color: Colors.black87,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: CircleAvatar(
-              radius: 16,
-              backgroundImage: widget.user.photoURL != null
-                  ? NetworkImage(widget.user.photoURL!)
-                  : null,
-              child: widget.user.photoURL == null
-                  ? const Icon(Icons.person, size: 20)
-                  : null,
-            ),
-            onPressed: () {
-              _showProfileMenu(context, authProvider);
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
+      appBar: _buildAppBar(authProvider),
       body: Column(
         children: [
-          // Search Section
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Search Bar
-                TextField(
-                  controller: _searchController,
-                  onChanged: (value) {
-                    if (value.isNotEmpty) {
-                      _performSearch(value);
-                    } else {
-                      _loadInitialData();
-                    }
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Search hotels, cities, states...',
-                    hintStyle: GoogleFonts.poppins(
-                      color: Colors.grey[400],
-                      fontSize: 14,
-                    ),
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, color: Colors.grey),
-                            onPressed: () {
-                              _searchController.clear();
-                              _loadInitialData();
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
+          _buildSearchSection(),
+          Expanded(child: _buildResultsSection()),
+        ],
+      ),
+    );
+  }
 
-                // Search Type Filter
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: ['All', 'City', 'State', 'Country', 'Property']
-                        .map(
-                          (type) => Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: FilterChip(
-                              label: Text(type),
-                              selected: _selectedSearchType == type,
-                              onSelected: (selected) {
-                                setState(() {
-                                  _selectedSearchType = type;
-                                });
-                                if (_searchController.text.isNotEmpty) {
-                                  _performSearch(_searchController.text);
-                                } else {
-                                  _loadInitialData();
-                                }
-                              },
-                              selectedColor: Colors.blue,
-                              labelStyle: TextStyle(
-                                color: _selectedSearchType == type
-                                    ? Colors.white
-                                    : Colors.black87,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-              ],
-            ),
+  PreferredSizeWidget _buildAppBar(AuthProvider authProvider) {
+    return AppBar(
+      elevation: 0,
+      backgroundColor: Colors.white,
+      title: Text(
+        'Discover Hotels',
+        style: GoogleFonts.poppins(
+          color: Colors.black87,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: CircleAvatar(
+            radius: 16,
+            backgroundImage: widget.user.photoURL != null
+                ? NetworkImage(widget.user.photoURL!)
+                : null,
+            child: widget.user.photoURL == null
+                ? const Icon(Icons.person, size: 20)
+                : null,
           ),
+          onPressed: () => _showProfileMenu(authProvider),
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
 
-          // Results Section
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildResults(),
+  Widget _buildSearchSection() {
+    return Consumer<HomeProvider>(
+      builder: (context, homeProvider, _) {
+        return Container(
+          color: Colors.white,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              _buildSearchBar(),
+              const SizedBox(height: 12),
+              _buildSearchTypeFilter(homeProvider),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return TextField(
+      controller: _searchController,
+      onChanged: _handleSearchChange,
+      decoration: InputDecoration(
+        hintText: 'Search hotels, cities, states...',
+        hintStyle: GoogleFonts.poppins(color: Colors.grey[400], fontSize: 14),
+        prefixIcon: const Icon(Icons.search, color: Colors.grey),
+        suffixIcon: _searchController.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, color: Colors.grey),
+                onPressed: _handleClearSearch,
+              )
+            : null,
+        filled: true,
+        fillColor: Colors.grey[100],
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchTypeFilter(HomeProvider homeProvider) {
+    final searchTypes = ['All', 'City', 'State', 'Country', 'Property'];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: searchTypes
+            .map(
+              (type) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  label: Text(type),
+                  selected: homeProvider.selectedSearchType == type,
+                  onSelected: (selected) => _handleSearchTypeChange(type),
+                  selectedColor: Colors.blue,
+                  labelStyle: TextStyle(
+                    color: homeProvider.selectedSearchType == type
+                        ? Colors.white
+                        : Colors.black87,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _buildResultsSection() {
+    return Consumer<HomeProvider>(
+      builder: (context, homeProvider, _) {
+        if (homeProvider.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (homeProvider.results.isEmpty && homeProvider.hasSearched) {
+          return _buildEmptyState();
+        }
+
+        if (homeProvider.results.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        return _buildResultsList(homeProvider.results);
+      },
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'No results found',
+            style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try searching for a different location',
+            style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[400]),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildResults() {
-    if (_results.isEmpty && _hasSearched) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'No results found',
-              style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Try searching for a different location',
-              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[400]),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_results.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
+  Widget _buildResultsList(List<SearchResult> results) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _results.length,
+      itemCount: results.length,
       itemBuilder: (context, index) {
-        final result = _results[index];
-        return _buildResultCard(result);
+        return _buildResultCard(results[index]);
       },
     );
   }
@@ -265,118 +246,30 @@ class _HomeScreenState extends State<HomeScreen> {
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
-        onTap: () {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Selected: ${result.name}')));
-        },
+        onTap: () => _handleResultTap(result),
         borderRadius: BorderRadius.circular(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image Section
-            if (result.imageUrl != null && result.imageUrl!.isNotEmpty)
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(16),
-                ),
-                child: Image.network(
-                  result.imageUrl!,
-                  height: 180,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
-                ),
-              )
-            else
-              _buildPlaceholderImage(),
-
-            // Content Section
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          result.name,
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          result.type.toUpperCase(),
-                          style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.blue[700],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (result.displayLocation.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on,
-                          size: 16,
-                          color: Colors.grey[600],
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            result.displayLocation,
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('View details: ${result.name}')),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(
-                      'View Details',
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          children: [_buildResultImage(result), _buildResultContent(result)],
         ),
       ),
     );
+  }
+
+  Widget _buildResultImage(SearchResult result) {
+    if (result.imageUrl != null && result.imageUrl!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        child: Image.network(
+          result.imageUrl!,
+          height: 180,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
+        ),
+      );
+    }
+    return _buildPlaceholderImage();
   }
 
   Widget _buildPlaceholderImage() {
@@ -397,223 +290,177 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showProfileMenu(BuildContext context, AuthProvider authProvider) {
+  Widget _buildResultContent(SearchResult result) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildResultHeader(result),
+          if (result.displayLocation.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildResultLocation(result),
+          ],
+          const SizedBox(height: 12),
+          _buildViewDetailsButton(result),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultHeader(SearchResult result) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            result.name,
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.blue[50],
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            result.type.toUpperCase(),
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Colors.blue[700],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResultLocation(SearchResult result) {
+    return Row(
+      children: [
+        Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            result.displayLocation,
+            style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildViewDetailsButton(SearchResult result) {
+    return ElevatedButton(
+      onPressed: () => _handleViewDetails(result),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        minimumSize: const Size(double.infinity, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: Text(
+        'View Details',
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+      ),
+    );
+  }
+
+  void _showProfileMenu(AuthProvider authProvider) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(
-              radius: 40,
-              backgroundImage: widget.user.photoURL != null
-                  ? NetworkImage(widget.user.photoURL!)
-                  : null,
+      builder: (context) => _buildProfileMenu(authProvider),
+    );
+  }
+
+  Widget _buildProfileMenu(AuthProvider authProvider) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 40,
+            backgroundImage: widget.user.photoURL != null
+                ? NetworkImage(widget.user.photoURL!)
+                : null,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            widget.user.displayName ?? '',
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 12),
-            Text(
-              widget.user.displayName ?? '',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            Text(
-              widget.user.email ?? '',
-              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 20),
-            if (authProvider.visitorToken != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green[200]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.verified, color: Colors.green[700], size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Device Verified',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: () async {
-                Navigator.pop(context);
-                await authProvider.signOut();
-                if (context.mounted) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SignInScreen()),
-                  );
-                }
-              },
-              icon: const Icon(Icons.logout),
-              label: const Text('Sign Out'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+          Text(
+            widget.user.email ?? '',
+            style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 20),
+          if (authProvider.visitorToken != null) _buildVerifiedBadge(),
+          const SizedBox(height: 20),
+          _buildSignOutButton(authProvider),
+        ],
       ),
     );
   }
-}
 
-
-/*import 'package:flutter/material.dart';
-import 'package:hotel_app/business_logic/auth-provider.dart';
-import 'package:provider/provider.dart';
-import 'sign_in_screen.dart';
-
-class HomeScreen extends StatelessWidget {
-  final dynamic user;
-  const HomeScreen({super.key, required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Welcome ${user.displayName ?? ''}'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await authProvider.signOut();
-              if (context.mounted) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SignInScreen()),
-                );
-              }
-            },
+  Widget _buildVerifiedBadge() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.verified, color: Colors.green[700], size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Device Verified',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (user.photoURL != null)
-                CircleAvatar(
-                  radius: 40,
-                  backgroundImage: NetworkImage(user.photoURL!),
-                ),
-              const SizedBox(height: 16),
-              Text(
-                user.displayName ?? '',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                user.email ?? '',
-                style: const TextStyle(fontSize: 14, color: Colors.grey),
-              ),
-              const SizedBox(height: 24),
+    );
+  }
 
-              // Visitor Token Display
-              if (authProvider.visitorToken != null)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green.shade200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            color: Colors.green.shade700,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Device Registered',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Visitor Token:',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 4),
-                      SelectableText(
-                        authProvider.visitorToken!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.warning,
-                        color: Colors.orange.shade700,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Device registration pending or failed',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
+  Widget _buildSignOutButton(AuthProvider authProvider) {
+    return ElevatedButton.icon(
+      onPressed: () => _handleSignOut(authProvider),
+      icon: const Icon(Icons.logout),
+      label: const Text('Sign Out'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.red,
+        foregroundColor: Colors.white,
+        minimumSize: const Size(double.infinity, 48),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
+
+  Future<void> _handleSignOut(AuthProvider authProvider) async {
+    Navigator.pop(context);
+    await authProvider.signOut();
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const SignInScreen()),
+      );
+    }
+  }
 }
-*/
