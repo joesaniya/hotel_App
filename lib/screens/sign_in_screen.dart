@@ -15,17 +15,19 @@ class SignInScreen extends StatelessWidget {
         builder: (context, authProvider, _) {
           return Stack(
             children: [
-              // Background Image
               Container(
                 decoration: const BoxDecoration(
                   image: DecorationImage(
-                    image: AssetImage('assets/images/hotel_bg.jpg'),
+                    image: NetworkImage(
+                      'https://www.google.com/imgres?q=island%20with%20stays%20image%20bg%20jpg%20images&imgurl=https%3A%2F%2Fimg.freepik.com%2Ffree-photo%2Fidyllic-tropical-island-resort-with-turquoise-waters-wooden-jetty_23-2151963002.jpg%3Fsemt%3Dais_hybrid%26w%3D740%26q%3D80&imgrefurl=https%3A%2F%2Fwww.freepik.com%2Ffree-photos-vectors%2Fresort-island&docid=jMjKlAKL_lC7hM&tbnid=z3jK_3-WpADfEM&vet=12ahUKEwiPndCP99GQAxXzXGwGHe2FAVEQM3oECB8QAA..i&w=740&h=1082&hcb=2&ved=2ahUKEwiPndCP99GQAxXzXGwGHe2FAVEQM3oECB8QAA',
+                    ),
+                    // image: AssetImage('assets/images/hotel_bg.jpeg'),
                     fit: BoxFit.cover,
                   ),
                 ),
                 child: Stack(
                   children: [
-                    // Gradient Overlay
+                    // Gradient Overlayhttps://www.google.com/imgres?q=island%20with%20stays%20image%20bg%20jpg%20images&imgurl=https%3A%2F%2Fimg.freepik.com%2Ffree-photo%2Fidyllic-tropical-island-resort-with-turquoise-waters-wooden-jetty_23-2151963002.jpg%3Fsemt%3Dais_hybrid%26w%3D740%26q%3D80&imgrefurl=https%3A%2F%2Fwww.freepik.com%2Ffree-photos-vectors%2Fresort-island&docid=jMjKlAKL_lC7hM&tbnid=z3jK_3-WpADfEM&vet=12ahUKEwiPndCP99GQAxXzXGwGHe2FAVEQM3oECB8QAA..i&w=740&h=1082&hcb=2&ved=2ahUKEwiPndCP99GQAxXzXGwGHe2FAVEQM3oECB8QAA
                     Positioned(
                       bottom: 0,
                       left: 0,
@@ -71,7 +73,9 @@ class SignInScreen extends StatelessWidget {
                               ],
                             ),
                           ),
-                          SizedBox(height: MediaQuery.of(context).size.height * 0.01),
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.01,
+                          ),
                           Text(
                             'Experience the beauty of tropical islands',
                             style: GoogleFonts.poppins(
@@ -80,24 +84,32 @@ class SignInScreen extends StatelessWidget {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          SizedBox(height: MediaQuery.of(context).size.height * 0.01),
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.01,
+                          ),
                           Center(
                             child: ElevatedButton(
                               onPressed: authProvider.isLoading
                                   ? null
                                   : () async {
-                                      final user = await authProvider.signInWithGoogle();
+                                      final user = await authProvider
+                                          .signInWithGoogle();
                                       if (user != null && context.mounted) {
                                         Navigator.pushReplacement(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (_) => HomeScreen(user: user),
+                                            builder: (_) =>
+                                                HomeScreen(user: user),
                                           ),
                                         );
                                       } else if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
                                           const SnackBar(
-                                            content: Text('Sign in failed. Please try again.'),
+                                            content: Text(
+                                              'Sign in failed. Please try again.',
+                                            ),
                                           ),
                                         );
                                       }
@@ -125,7 +137,10 @@ class SignInScreen extends StatelessWidget {
                                       width: 24,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black87),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.black87,
+                                            ),
                                       ),
                                     )
                                   : Row(
@@ -172,7 +187,6 @@ class SignInScreen extends StatelessWidget {
       ),
     );
   }
-
 }
 
 

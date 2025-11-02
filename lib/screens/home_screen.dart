@@ -228,11 +228,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.only(right: 8),
                 child: FilterChip(
                   label: Text(type),
+
                   selected: homeProvider.selectedSearchType == type,
                   onSelected: (selected) => _handleSearchTypeChange(type),
                   selectedColor: Colors.blue,
                   backgroundColor: Colors.grey[200],
-                  labelStyle: TextStyle(
+                  labelStyle: GoogleFonts.poppins(
                     color: homeProvider.selectedSearchType == type
                         ? Colors.white
                         : Colors.black87,

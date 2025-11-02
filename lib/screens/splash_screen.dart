@@ -48,23 +48,23 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.blueAccent,
+      backgroundColor: Colors.grey[50],
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset('assets/images/app_logo.png', height: 100),
+            Image.asset('assets/images/logo.png'),
             const SizedBox(height: 20),
             Text(
-              "Hotel App",
+              "MyTravaly",
               style: GoogleFonts.poppins(
-                color: Colors.white,
+                color: Colors.blueAccent,
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
               ),
             ),
             SizedBox(height: MediaQuery.of(context).size.height * 0.04),
-            const CircularProgressIndicator(color: Colors.white),
+            const CircularProgressIndicator(color: Colors.blueAccent),
           ],
         ),
       ),
