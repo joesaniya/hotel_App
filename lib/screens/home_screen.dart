@@ -425,9 +425,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               TextButton(
-                onPressed: () {
-                
-                },
+                onPressed: () {},
                 child: Text(
                   'See all',
                   style: GoogleFonts.poppins(
@@ -462,7 +460,6 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.only(right: 16),
       child: GestureDetector(
         onTap: () {
-         
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('Selected: ${hotel.name}')));
@@ -602,9 +599,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               TextButton(
-                onPressed: () {
-                  
-                },
+                onPressed: () {},
                 child: Text(
                   'See all',
                   style: GoogleFonts.poppins(
@@ -639,7 +634,6 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.only(right: 16),
       child: GestureDetector(
         onTap: () {
-       
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('Selected: ${deal.name}')));
@@ -796,7 +790,6 @@ class _HomeScreenState extends State<HomeScreen> {
             homeProvider.setSearchCriteria(criteria);
             Navigator.pop(context);
 
-            
             _searchController.clear();
             setState(() {
               _showSuggestions = false;
@@ -814,7 +807,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _navigateToHotelDetails(SearchResult result) async {
     try {
-    
       _searchController.clear();
       setState(() {
         _showSuggestions = false;
@@ -848,6 +840,53 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void showFilterSheet(
+    SearchResult searchResult,
+    SearchCriteria searchCriteria,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, controller) => SearchFilterBottomSheet(
+          initialCriteria: searchCriteria,
+          onSearch: (newCriteria) async {
+            context.read<HomeProvider>().clearHotels();
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HotelResultsScreen(
+                  searchResult: searchResult,
+                  searchCriteria: searchCriteria,
+                ),
+              ),
+            );
+            /*  if (searchResult.type == 'Hotel') {
+              log(
+                'Hotel selected, navigating to details screen.:${searchResult.type}',
+              );
+            } else {
+              log('Navigating to search results screen.:${searchResult.type}');
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => HotelResultsScreen(
+                    searchResult: searchResult,
+                    searchCriteria: searchCriteria,
+                  ),
+                ),
+              );
+            }*/
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _navigateToHotelResults(
     SearchResult result,
     SearchCriteria criteria,
@@ -867,7 +906,23 @@ class _HomeScreenState extends State<HomeScreen> {
       log('Check-in: ${criteria.checkIn}');
       log('Check-out: ${criteria.checkOut}');
       log('Rooms: ${criteria.rooms}, Adults: ${criteria.adults}');
+      /* if (result.type == 'Hotel') {
+        log('Hotel selected, navigating to details screen.:${result.type}');
+      } else {
+        log('Navigating to hotel results screen.:${result.type}');
+        /* await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HotelResultsScreen(
+              searchResult: result,
+              searchCriteria: criteria,
+            ),
+          ),
+        );*/
+      }
+      showFilterSheet(result, criteria);
 
+      */
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -1014,6 +1069,3 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 }
-
-
-
