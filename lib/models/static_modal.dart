@@ -14,7 +14,7 @@ class StaticHotel {
   });
 }
 
-// Static deal data model
+
 class StaticDeal {
   final String name;
   final String location;

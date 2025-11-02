@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hotel_app/models/hotel_modal.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Simple widget to show hotel location and open in maps
+
 class HotelLocationCard extends StatelessWidget {
   final PropertyAddress address;
 

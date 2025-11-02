@@ -8,7 +8,7 @@ class AppSettingsService {
 
   final DioClient _dioClient = DioClient();
 
-  /// Fetch app settings
+ 
   Future<AppSettingsResponse?> fetchAppSettings() async {
     try {
       log('Fetching app settings...');

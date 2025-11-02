@@ -37,7 +37,7 @@ class SearchResult {
       state: address?['state']?.toString(),
       country: address?['country']?.toString(),
       imageUrl: json['image'] ?? json['imageUrl'],
-      // IMPORTANT: Store the entire searchArray object
+     
       searchArray: json['searchArray'] as Map<String, dynamic>?,
     );
   }
@@ -67,7 +67,7 @@ class SearchResult {
     return parts.join(', ');
   }
 
-  // Helper method to get search query list
+  
   List<String> getSearchQueryList() {
     if (searchArray == null || searchArray!['query'] == null) {
       return [];
@@ -81,7 +81,7 @@ class SearchResult {
     return [];
   }
 
-  // Helper method to get search type for API
+
   String getSearchTypeForAPI() {
     switch (type.toLowerCase()) {
       case 'hotel':

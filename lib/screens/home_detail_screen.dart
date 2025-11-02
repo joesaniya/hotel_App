@@ -100,7 +100,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen>
             ),
           ),
           onPressed: () {
-            // Toggle favorite
+          
           },
         ),
         const SizedBox(width: 8),

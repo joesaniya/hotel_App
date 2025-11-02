@@ -7,7 +7,7 @@ class GoogleSignInService {
   static final _auth = FirebaseAuth.instance;
   static final _googleSignIn = GoogleSignIn();
 
-  /// Sign in with Google
+
   static Future<User?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -30,7 +30,6 @@ class GoogleSignInService {
     }
   }
 
-  /// Sign out from Google & Firebase
   static Future<void> signOut() async {
     await _googleSignIn.signOut();
     await _auth.signOut();

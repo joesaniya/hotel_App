@@ -10,8 +10,7 @@ class HotelSearchService {
 
   final DioClient _dioClient = DioClient();
 
-  /// Search hotels by city, state, country, or property name
-  Future<List<SearchResult>> searchAutoComplete({
+ Future<List<SearchResult>> searchAutoComplete({
     required String inputText,
     String searchType = 'byCity',
     int limit = 10,
@@ -60,7 +59,7 @@ class HotelSearchService {
     }
   }
 
-  /// Search with multiple types
+ 
   Future<List<SearchResult>> searchAll(String inputText) async {
     if (inputText.length < 3) {
       return [];
@@ -102,7 +101,6 @@ class HotelSearchService {
     }
   }
 
- /// Get hotel search results with pagination
   Future<HotelSearchResponse> getSearchResultListOfHotels({
     required List<String> searchQuery,
     required String searchType,
@@ -115,7 +113,7 @@ class HotelSearchService {
     List<String> arrayOfExcludedSearchType = const [],
     String highPrice = '3000000',
     String lowPrice = '0',
-    int limit = 5, // Maximum allowed by API
+    int limit = 5,
     List<String> preloaderList = const [],
     String currency = 'INR',
     int rid = 0,
@@ -223,7 +221,7 @@ class HotelSearchService {
     return results;
   }
 
-  /// Parse hotel search response
+ 
   HotelSearchResponse _parseHotelSearchResponse(dynamic responseData) {
     try {
       if (responseData == null || responseData is! Map) {
@@ -266,7 +264,7 @@ class HotelSearchService {
   }
 }
 
-/// Response model for hotel search
+
 class HotelSearchResponse {
   final List<Hotel> hotels;
   final List<String> excludedHotels;

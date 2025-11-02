@@ -32,7 +32,7 @@ class _HotelResultsScreenState extends State<HotelResultsScreen> {
     super.initState();
     log('searchresult:${widget.searchResult}');
     log('searchcriteria:${widget.searchCriteria}');
-    // Fetch hotels when screen loads
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<HomeProvider>().selectLocationAndFetchHotels(
         widget.searchResult,
@@ -40,7 +40,7 @@ class _HotelResultsScreenState extends State<HotelResultsScreen> {
       );
     });
 
-    // Setup pagination listener
+ 
     _scrollController.addListener(_onScroll);
   }
 

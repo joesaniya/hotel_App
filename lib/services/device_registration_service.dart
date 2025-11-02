@@ -4,7 +4,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 class DeviceRegistrationService {
   final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
 
-  /// Get device registration data
+  
   Future<Map<String, dynamic>> getDeviceRegistrationData() async {
     try {
       if (Platform.isAndroid) {
@@ -20,7 +20,7 @@ class DeviceRegistrationService {
     }
   }
 
-  /// Get Android device information
+  
   Future<Map<String, dynamic>> _getAndroidDeviceData() async {
     final androidInfo = await _deviceInfo.androidInfo;
 
@@ -40,7 +40,7 @@ class DeviceRegistrationService {
     };
   }
 
-  /// Get iOS device information
+ 
   Future<Map<String, dynamic>> _getIOSDeviceData() async {
     final iosInfo = await _deviceInfo.iosInfo;
 

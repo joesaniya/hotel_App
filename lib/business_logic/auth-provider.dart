@@ -18,7 +18,7 @@ class AuthProvider extends ChangeNotifier {
   final DeviceRegistrationService _deviceService = DeviceRegistrationService();
   final MyTravalyApiService _apiService = MyTravalyApiService();
 
-  /// Load stored user info on app start
+  
   Future<void> loadUser() async {
     _isLoading = true;
     notifyListeners();
@@ -35,13 +35,12 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Sign in with Google and register device
   Future<User?> signInWithGoogle() async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      // Step 1: Sign in with Google
+    
       final user = await GoogleSignInService.signInWithGoogle();
       if (user == null) {
         _isLoading = false;
@@ -53,11 +52,11 @@ class AuthProvider extends ChangeNotifier {
       await LocalStorageService.saveUser(user);
       log('Google sign-in successful: ${user.email}');
 
-      // Step 2: Get device information
+     
       final deviceData = await _deviceService.getDeviceRegistrationData();
       log('Device data collected: $deviceData');
 
-      // Step 3: Register device and get visitor token
+    
       final visitorToken = await _apiService.registerDevice(deviceData);
 
       if (visitorToken != null) {
@@ -66,8 +65,7 @@ class AuthProvider extends ChangeNotifier {
         log('Visitor token saved: $visitorToken');
       } else {
         log('Warning: Failed to get visitor token');
-        // You might want to handle this case - continue anyway or show error
-      }
+   }
 
       _isLoading = false;
       notifyListeners();
@@ -80,7 +78,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Logout (clear local + Firebase)
+
   Future<void> signOut() async {
     await GoogleSignInService.signOut();
     await LocalStorageService.clearUser();
