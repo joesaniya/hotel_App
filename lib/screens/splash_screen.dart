@@ -22,7 +22,6 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkUserAndNavigate() async {
-   
     await Future.delayed(const Duration(seconds: 5));
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -31,13 +30,11 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (authProvider.user != null) {
-   
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => HomeScreen(user: authProvider.user!)),
       );
     } else {
-      
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const SignInScreen()),

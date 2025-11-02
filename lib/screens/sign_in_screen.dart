@@ -19,7 +19,7 @@ class SignInScreen extends StatelessWidget {
                 decoration: const BoxDecoration(
                   image: DecorationImage(
                     image: NetworkImage(
-                      'https://www.google.com/imgres?q=island%20with%20stays%20image%20bg%20jpg%20images&imgurl=https%3A%2F%2Fimg.freepik.com%2Ffree-photo%2Fidyllic-tropical-island-resort-with-turquoise-waters-wooden-jetty_23-2151963002.jpg%3Fsemt%3Dais_hybrid%26w%3D740%26q%3D80&imgrefurl=https%3A%2F%2Fwww.freepik.com%2Ffree-photos-vectors%2Fresort-island&docid=jMjKlAKL_lC7hM&tbnid=z3jK_3-WpADfEM&vet=12ahUKEwiPndCP99GQAxXzXGwGHe2FAVEQM3oECB8QAA..i&w=740&h=1082&hcb=2&ved=2ahUKEwiPndCP99GQAxXzXGwGHe2FAVEQM3oECB8QAA',
+                      'https://img.freepik.com/free-photo/idyllic-tropical-island-resort-with-turquoise-waters-wooden-jetty_23-2151963002.jpg?semt=ais_hybrid&w=740&q=80',
                     ),
                     // image: AssetImage('assets/images/hotel_bg.jpeg'),
                     fit: BoxFit.cover,
@@ -27,7 +27,7 @@ class SignInScreen extends StatelessWidget {
                 ),
                 child: Stack(
                   children: [
-                  Positioned(
+                    Positioned(
                       bottom: 0,
                       left: 0,
                       right: 0,
@@ -49,7 +49,6 @@ class SignInScreen extends StatelessWidget {
                       ),
                     ),
 
-                    
                     Positioned(
                       bottom: 60,
                       left: 20,
@@ -170,7 +169,6 @@ class SignInScreen extends StatelessWidget {
                 ),
               ),
 
-              
               if (authProvider.isLoading)
                 Container(
                   color: Colors.black.withOpacity(0.3),
